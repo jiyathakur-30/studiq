@@ -1,0 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root, .light {
+    --bg-main: #f8fafc;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg-sidebar: rgba(241, 245, 249, 0.95);
+    --bg-muted: #f1f5f9;
+    --border-color: rgba(226, 232, 240, 0.95);
+    --text-main: #090d16;
+    --text-muted: #3b4856;
+    --shadow-color: rgba(15, 23, 42, 0.05);
+    --shadow-glow: rgba(99, 102, 241, 0.04);
+    --bg-select: #ffffff;
+    --bg-glow: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.01) 0px, transparent 50%);
+    --accent: #4f46e5;
+  }
+
+  .dark {
+    --bg-main: #0b0f19;
+    --bg-card: rgba(17, 24, 39, 0.6);
+    --bg-sidebar: rgba(17, 24, 39, 0.65);
+    --bg-muted: #1e293b;
+    --border-color: rgba(31, 41, 55, 0.7);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --shadow-color: rgba(0, 0, 0, 0.37);
+    --shadow-glow: rgba(99, 102, 241, 0.15);
+    --bg-select: #111827;
+    --bg-glow: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.03) 0px, transparent 50%);
+    --accent: #6366f1;
+  }
+
+  .cyberpunk {
+    --bg-main: #020204;
+    --bg-card: rgba(10, 10, 12, 0.85);
+    --bg-sidebar: rgba(13, 13, 18, 0.9);
+    --bg-muted: #0d1e24;
+    --border-color: rgba(6, 182, 212, 0.35);
+    --text-main: #10b981;
+    --text-muted: #06b6d4;
+    --shadow-color: rgba(244, 63, 94, 0.15);
+    --shadow-glow: rgba(244, 63, 94, 0.25);
+    --bg-select: #09090b;
+    --bg-glow: radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.06) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.04) 0px, transparent 50%);
+    --accent: #ec4899;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    background-image: var(--bg-glow);
+    @apply font-sans antialiased selection:bg-brand-500 selection:text-white transition-colors duration-300 ease-in-out;
+    background-attachment: fixed;
+  }
+
+  /* Core layout component selections to remove hardcoded theme parameters */
+  header, select, input, textarea, nav, div, button {
+    @apply transition-colors duration-300 ease-in-out;
+  }
+
+  select {
+    background-color: var(--bg-select) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  select option {
+    background-color: var(--bg-select) !important;
+    color: var(--text-main) !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+    @apply tracking-tight;
+  }
+}
+
+/* Custom premium scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Dynamic Glassmorphism system utilizing CSS custom properties */
+.glass-panel {
+  background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  border-color: var(--border-color);
+  box-shadow: 0 4px 6px -1px var(--shadow-color), 0 10px 15px -3px var(--shadow-color);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  @apply border;
+}
+
+.glass-card {
+  background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  border-color: var(--border-color);
+  box-shadow: 0 4px 6px -1px var(--shadow-color), 0 12px 24px -4px var(--shadow-color);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  @apply border rounded-xl p-6 transition-all duration-300;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+}
+
+.light .glass-card:hover {
+  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.12), 0 2px 4px rgba(99, 102, 241, 0.04);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.dark .glass-card:hover {
+  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.cyberpunk .glass-card:hover {
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.55);
+}
+
+.premium-glass-card {
+  backdrop-filter: blur(12px);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  @apply bg-slate-100/50 dark:bg-white/[0.03] border-slate-200 dark:border-white/10 shadow-lg shadow-slate-900/5 dark:shadow-[0_12px_30px_-10px_rgba(99,102,241,0.08)] border rounded-xl p-6 transition-all duration-300 relative overflow-hidden;
+}
+
+.premium-glass-card:hover {
+  transform: translateY(-2px);
+}
+
+.light .premium-glass-card:hover {
+  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.12), 0 2px 4px rgba(99, 102, 241, 0.04);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.dark .premium-glass-card:hover {
+  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.cyberpunk .premium-glass-card:hover {
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.55);
+}
+
+.glass-input {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-main);
+  @apply w-full rounded-lg px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40 transition-all duration-200;
+}
+
+.light .glass-input {
+  @apply placeholder-slate-500;
+}
+
+/* Custom interactive elements */
+.glow-text {
+  text-shadow: 0 0 10px var(--shadow-glow);
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-400 via-brand-500 to-indigo-600;
+}
+
+.cyberpunk .text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500;
+}
+
+/* Kanban board smooth animations */
+.kanban-column {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  @apply flex flex-col gap-3 p-4 rounded-xl border min-h-[500px] transition-colors duration-200;
+}
+
+.kanban-column.drag-over {
+  @apply bg-brand-500/5 border-brand-500/30;
+}
+
+/* Pomodoro custom slider indicators */
+.pomodoro-ring {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Auth background graphics */
+.floating-circle {
+  @apply absolute rounded-full bg-brand-500/10 blur-[80px] pointer-events-none;
+}
