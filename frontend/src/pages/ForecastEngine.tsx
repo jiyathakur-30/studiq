@@ -235,15 +235,40 @@ export const ForecastEngine: React.FC = () => {
     setShowSuccessOverlay(true);
   };
 
+  const liveCalculatedSgpa = useMemo(() => {
+    if (manualSubjects.length === 0) return 0;
+    const gradePoints: Record<string, number> = { 'O': 10, 'A+': 9, 'A': 8, 'B+': 7, 'B': 6, 'C': 5, 'F': 0 };
+    const totalWeightedPoints = manualSubjects.reduce((sum, s) => sum + (gradePoints[s.grade] ?? 8) * s.credits, 0);
+    const totalCreditsSum = manualSubjects.reduce((sum, s) => sum + s.credits, 0);
+    return Number((totalWeightedPoints / totalCreditsSum).toFixed(2));
+  }, [manualSubjects]);
+
   // Commit manual inputs to Zustand Semesters ledger
   const handleManualCommit = () => {
     const semName = manualSemName.trim() || `Semester ${semesters.length + 1}`;
-    const sgpaVal = Number(manualSgpa);
-    const creditsVal = Number(manualCredits) || 20;
+    let sgpaVal = Number(manualSgpa);
+    let creditsVal = Number(manualCredits);
 
-    if (isNaN(sgpaVal) || sgpaVal < 0 || sgpaVal > 10) {
-      showNotification("Please enter a valid SGPA (between 0.0 and 10.0).", "warning");
-      return;
+    if (manualSubjects.length > 0) {
+      sgpaVal = liveCalculatedSgpa;
+      creditsVal = manualSubjects.reduce((sum, s) => sum + s.credits, 0);
+    } else {
+      if (!manualSgpa.trim()) {
+        showNotification("Please enter a Semester SGPA or add subjects to compute it.", "warning");
+        return;
+      }
+      if (isNaN(sgpaVal) || sgpaVal < 0 || sgpaVal > 10) {
+        showNotification("Please enter a valid SGPA (between 0.0 and 10.0).", "warning");
+        return;
+      }
+      if (!manualCredits.trim()) {
+        showNotification("Please enter Semester Credits.", "warning");
+        return;
+      }
+      if (isNaN(creditsVal) || creditsVal < 1 || creditsVal > 35) {
+        showNotification("Semester Credits must be between 1 and 35.", "warning");
+        return;
+      }
     }
 
     addSemester({
@@ -268,13 +293,25 @@ export const ForecastEngine: React.FC = () => {
 
   // Add a subject inline to manual subjects ledger
   const handleAddManualSubject = () => {
-    if (!manualSubName.trim()) return;
+    if (!manualSubName.trim()) {
+      showNotification("Please enter a Subject Name.", "warning");
+      return;
+    }
+    const creditsVal = Number(manualSubCredits) || 3;
+    if (isNaN(creditsVal) || creditsVal < 1 || creditsVal > 10) {
+      showNotification("Subject Credits must be between 1 and 10.", "warning");
+      return;
+    }
+    if (manualSubjects.some(s => s.name.toLowerCase() === manualSubName.trim().toLowerCase())) {
+      showNotification("Subject is already added to this semester record.", "warning");
+      return;
+    }
     setManualSubjects((prev) => [
       ...prev,
       {
         name: manualSubName.trim(),
         grade: manualSubGrade,
-        credits: Number(manualSubCredits) || 3
+        credits: creditsVal
       }
     ]);
     setManualSubName('');
@@ -588,48 +625,65 @@ export const ForecastEngine: React.FC = () => {
             transition={{ duration: 0.15 }}
             className="w-full max-w-xl mx-auto py-12"
           >
-            <Card className="p-8 text-center space-y-6 relative overflow-hidden border border-emerald-500/20 dark:border-emerald-500/10 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full filter blur-xl z-0 pointer-events-none" />
+            <Card className="p-8 text-center space-y-6 relative overflow-hidden border border-slate-200 dark:border-white/5 shadow-md">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/5 rounded-full filter blur-xl z-0 pointer-events-none" />
               
-              <div className="mx-auto h-14 w-14 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shadow-sm">
-                <CheckCircle2 size={24} />
+              <div className="mx-auto h-12 w-12 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm">
+                <CheckCircle2 size={20} />
               </div>
 
               <div className="space-y-2">
                 <h3 className={`font-sans font-black text-xl ${TXT_PRIMARY} tracking-tight`}>
-                  Academic Records Calibrated & Ready!
+                  Semester Record Logged Successfully
                 </h3>
-                <p className={`text-xs ${TXT_SECONDARY} max-w-sm mx-auto leading-relaxed`}>
-                  Semester records for <strong className="font-extrabold">{successSemData.name}</strong> (SGPA: {successSemData.sgpa}, Credits: {successSemData.credits}) have been successfully committed to your study profile.
+                <p className={`text-xs ${TXT_SECONDARY} max-w-md mx-auto leading-relaxed`}>
+                  Academic performance data has been synchronized and appended to your historical logs.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 max-w-xs mx-auto text-left space-y-2 text-slate-700 dark:text-slate-350">
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Predictive forecasting bounds updated</span>
+              {/* Mapped Categories Grid: Academic Overview, Semester Breakdown, Performance Snapshot, Credit Summary */}
+              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 text-left space-y-1">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Academic Overview</span>
+                  <span className={`text-xs font-bold ${TXT_PRIMARY} block`}>{successSemData.name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Continuous mastery index computed</span>
+                <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 text-left space-y-1">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Semester Breakdown</span>
+                  <span className="text-xs font-bold text-brand-500 block">{successSemData.sgpa.toFixed(2)} SGPA</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Performance indicators unlocked</span>
+                <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 text-left space-y-1">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Performance Snapshot</span>
+                  <span className="text-xs font-semibold text-slate-650 dark:text-slate-350 block">
+                    {successSemData.sgpa >= 8.5 ? "First Class with Distinction" : successSemData.sgpa >= 7.0 ? "First Class" : "Standard Standing"}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 text-left space-y-1">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Credit Summary</span>
+                  <span className={`text-xs font-bold ${TXT_PRIMARY} block`}>{successSemData.credits} Credits Logged</span>
                 </div>
               </div>
 
-              <Button
-                onClick={() => {
-                  setShowSuccessOverlay(false);
-                  setSuccessSemData(null);
-                  setActiveTab('dashboard');
-                }}
-                variant="primary"
-                className="w-full max-w-xs font-bold h-11 text-xs shadow-md shadow-brand-500/20 mx-auto"
-              >
-                Enter Analytics Hub
-              </Button>
+              {/* Observational study focus advice */}
+              <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 max-w-md mx-auto text-left text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <span className="font-extrabold text-slate-600 dark:text-slate-350 block mb-1">💡 Study Observational Note</span>
+                {successSemData.sgpa >= 9.0 
+                  ? "Outstanding semester baseline. Maintain these structural study block limits to lock in cumulative success indices."
+                  : "Target study blocks can be balanced further. Consider dedicating focused revision hours to lower-performing sections."}
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  onClick={() => {
+                    setShowSuccessOverlay(false);
+                    setSuccessSemData(null);
+                    setActiveTab('dashboard');
+                  }}
+                  variant="primary"
+                  className="w-full max-w-xs font-bold h-11 text-xs shadow-md shadow-brand-500/25 mx-auto"
+                >
+                  Enter Analytics Hub
+                </Button>
+              </div>
             </Card>
           </motion.div>
         )}
@@ -742,131 +796,141 @@ export const ForecastEngine: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.12 }}
-                      className="space-y-5 text-left flex-1"
+                      className="space-y-6 text-left flex-1"
                     >
-                      {/* Step 1: Semester Title */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Step 1: Semester Record Identifier</label>
-                        <Input
-                          placeholder={`e.g. Semester ${semesters.length + 1}`}
-                          value={manualSemName}
-                          onChange={(e) => setManualSemName(e.target.value)}
-                        />
-                        {manualSemName.trim().length > 0 && (
-                          <span className="text-[10px] text-emerald-500 font-extrabold flex items-center gap-1.5 mt-0.5 animate-fade-in">
-                            ✓ Semester profile validated
-                          </span>
-                        )}
+                      {/* Group 1: Semester Details */}
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Semester Details
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <Input
+                            label="Semester Name"
+                            placeholder={`e.g. Semester ${semesters.length + 1}`}
+                            value={manualSemName}
+                            onChange={(e) => setManualSemName(e.target.value)}
+                          />
+                          <Input
+                            label="Semester SGPA"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="10"
+                            placeholder="e.g. 9.15"
+                            value={manualSubjects.length > 0 ? liveCalculatedSgpa.toString() : manualSgpa}
+                            disabled={manualSubjects.length > 0}
+                            onChange={(e) => setManualSgpa(e.target.value)}
+                            helperText={manualSubjects.length > 0 ? "Computed from added subjects" : "Direct entry (0.0 - 10.0)"}
+                          />
+                          <Input
+                            label="Semester Credits"
+                            type="number"
+                            min="1"
+                            max="35"
+                            placeholder="e.g. 20"
+                            value={manualSubjects.length > 0 ? manualSubjects.reduce((sum, s) => sum + s.credits, 0).toString() : manualCredits}
+                            disabled={manualSubjects.length > 0}
+                            onChange={(e) => setManualCredits(e.target.value)}
+                            helperText={manualSubjects.length > 0 ? "Calculated from added subjects" : "Typically 18 - 26 credits"}
+                          />
+                        </div>
                       </div>
 
-                      {/* Step 2: Academic Statistics (Revealed if Name exists) */}
-                      {manualSemName.trim().length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          transition={{ duration: 0.2 }}
-                          className="space-y-1.5 pt-1"
-                        >
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Group 2: Subject Performance */}
+                      <div className="space-y-4 pt-4 border-t border-border/50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Subject Performance
+                          </h4>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono italic">
+                            O=10 | A+=9 | A=8 | B+=7 | B=6 | C=5 | F=0
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 items-end">
+                          <div className="col-span-6">
                             <Input
-                              label="Step 2a: Calculated SGPA"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max="10"
-                              placeholder="e.g. 9.15"
-                              value={manualSgpa}
-                              onChange={(e) => setManualSgpa(e.target.value)}
-                              helperText="Most semesters typically range between 6.0–9.5 SGPA."
-                            />
-                            <Input
-                              label="Step 2b: Total Credits"
-                              type="number"
-                              min="1"
-                              max="30"
-                              placeholder="e.g. 20"
-                              value={manualCredits}
-                              onChange={(e) => setManualCredits(e.target.value)}
-                              helperText="Typical semester loads are between 18–26 credits."
+                              label="Subject Name"
+                              placeholder="e.g. Cognitive Systems"
+                              value={manualSubName}
+                              onChange={(e) => setManualSubName(e.target.value)}
                             />
                           </div>
-                          {manualSgpa.trim().length > 0 && manualCredits.trim().length > 0 && (
-                            <span className="text-[10px] text-emerald-500 font-extrabold flex items-center gap-1.5 mt-0.5 animate-fade-in">
-                              ✓ Academic records calibrated
-                            </span>
-                          )}
-                        </motion.div>
-                      )}
-
-                      {/* Step 3: Subject Breakdown Builder (Optional) */}
-                      {manualSemName.trim().length > 0 && manualSgpa.trim().length > 0 && manualCredits.trim().length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          transition={{ duration: 0.2 }}
-                          className="space-y-4 pt-2 border-t border-border/50"
-                        >
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Step 3: Subject Course Details (Optional)</span>
-                          
-                          <div className="grid grid-cols-12 gap-3 items-end">
-                            <div className="col-span-6">
-                              <Input
-                                label="Course / Subject Name"
-                                placeholder="e.g. Cognitive Systems"
-                                value={manualSubName}
-                                onChange={(e) => setManualSubName(e.target.value)}
-                                helperText="Add weaker subjects first."
-                              />
-                            </div>
-                            <div className="col-span-3">
-                              <Select
-                                label="Grade"
-                                value={manualSubGrade}
-                                onChange={(val) => setManualSubGrade(val)}
-                                options={['O', 'A+', 'A', 'B+', 'B', 'C', 'F'].map(g => ({ value: g, label: g }))}
-                              />
-                            </div>
-                            <div className="col-span-3 pb-0.5">
-                              <Button
-                                type="button"
-                                onClick={handleAddManualSubject}
-                                variant="secondary"
-                                className="w-full h-11 !p-0 font-bold text-xs"
-                              >
-                                + Add
-                              </Button>
-                            </div>
+                          <div className="col-span-3">
+                            <Select
+                              label="Grade"
+                              value={manualSubGrade}
+                              onChange={(val) => setManualSubGrade(val)}
+                              options={['O', 'A+', 'A', 'B+', 'B', 'C', 'F'].map(g => ({ value: g, label: g }))}
+                            />
                           </div>
-
-                          {/* Added manual courses ledger checklist */}
-                          {manualSubjects.length > 0 && (
-                            <div className="space-y-2 max-h-28 overflow-y-auto pr-1 bg-muted/40 p-2.5 rounded-xl border border-border/50">
-                              {manualSubjects.map((sub, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-[11px] bg-card p-2 rounded-lg border border-border/40">
-                                  <span className="font-bold text-foreground truncate max-w-[150px]">{sub.name}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-muted-foreground">{sub.credits} Credits</span>
-                                    <Badge variant="brand" className="font-black px-1.5 text-[9px]">{sub.grade}</Badge>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex flex-col gap-2 pt-2">
-                            <span className="text-[10px] text-emerald-500 font-extrabold flex items-center gap-1.5 animate-fade-in">
-                              ✓ Forecast engine ready
-                            </span>
+                          <div className="col-span-3 pb-0.5">
                             <Button
-                              onClick={handleManualCommit}
-                              variant="primary"
-                              className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/20 mt-2"
+                              type="button"
+                              onClick={handleAddManualSubject}
+                              variant="secondary"
+                              className="w-full h-11 font-bold text-xs"
                             >
-                              Sync manual record
+                              + Add Subject
                             </Button>
                           </div>
-                        </motion.div>
-                      )}
+                        </div>
+
+                        {/* Added manual subjects ledger checklist */}
+                        {manualSubjects.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 pr-1 max-h-36 overflow-y-auto p-2 bg-slate-50/50 dark:bg-white/[0.01] rounded-xl border border-slate-200/50 dark:border-white/5">
+                            {manualSubjects.map((sub, idx) => {
+                              let gradeColor = 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-650 dark:text-slate-350';
+                              if (sub.grade === 'O' || sub.grade === 'A+') {
+                                gradeColor = 'border-emerald-500/20 bg-emerald-500/[0.03] text-emerald-600 dark:text-emerald-400';
+                              } else if (sub.grade === 'A') {
+                                gradeColor = 'border-brand-500/20 bg-brand-500/[0.03] text-brand-600 dark:text-brand-400';
+                              } else if (sub.grade === 'B+' || sub.grade === 'B') {
+                                gradeColor = 'border-indigo-500/20 bg-indigo-500/[0.03] text-indigo-600 dark:text-indigo-400';
+                              } else if (sub.grade === 'C') {
+                                gradeColor = 'border-amber-500/20 bg-amber-500/[0.03] text-amber-600 dark:text-amber-400';
+                              } else if (sub.grade === 'F') {
+                                gradeColor = 'border-rose-500/20 bg-rose-500/[0.03] text-rose-600 dark:text-rose-400';
+                              }
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`flex items-center gap-2 px-2.5 py-1 text-xs rounded-full border shadow-sm transition ${gradeColor}`}
+                                >
+                                  <span className="font-semibold truncate max-w-[120px]">{sub.name}</span>
+                                  <div className="h-3.5 w-[1px] bg-slate-200 dark:bg-white/10" />
+                                  <span className="text-[10px] font-bold opacity-80">{sub.credits}C</span>
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-1 py-0.5 rounded bg-black/5 dark:bg-white/5">
+                                    {sub.grade}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setManualSubjects(manualSubjects.filter((_, i) => i !== idx))}
+                                    className="text-slate-450 hover:text-rose-500 dark:hover:text-rose-450 font-bold text-sm cursor-pointer transition active:scale-75 select-none"
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="py-4 text-center text-xs text-slate-400 dark:text-slate-500 border border-dashed border-border rounded-xl">
+                            Add subjects to begin semester forecasting.
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <Button
+                            onClick={handleManualCommit}
+                            variant="primary"
+                            className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/25 mt-2"
+                          >
+                            Save Semester Record
+                          </Button>
+                        </div>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -900,105 +964,231 @@ export const ForecastEngine: React.FC = () => {
             </div>
 
             {/* extracted Results Ledger Preview */}
-            <div className="lg:col-span-5">
+            <div className="lg:col-span-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto scrollbar-thin">
               <AnimatePresence mode="wait">
-                {extractedData ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    className="space-y-6"
-                  >
-                    <Card className="p-6">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full filter blur-xl z-0 pointer-events-none" />
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-2.5 mb-6">
-                        <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                          <CheckCircle2 size={16} />
-                        </div>
-                        <h3 className={`font-sans font-black text-lg ${TXT_PRIMARY} tracking-tight`}>
-                          OCR Extracted Records
-                        </h3>
-                      </div>
+                {creationMode === 'ocr' ? (
+                  extractedData ? (
+                    <motion.div
+                      key="ocr-extracted-preview"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      className="space-y-6"
+                    >
+                      <Card className="p-6">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full filter blur-xl z-0 pointer-events-none" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-2.5 mb-6">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
+                              <CheckCircle2 size={16} />
+                            </div>
+                            <h3 className={`font-sans font-black text-lg ${TXT_PRIMARY} tracking-tight`}>
+                              OCR Extracted Records
+                            </h3>
+                          </div>
 
-                      {/* Semester Info */}
-                      <div className="grid grid-cols-2 gap-4 mb-6 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/60 dark:border-white/5">
-                        <div>
-                          <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Target Destination</span>
-                          <span className={`text-sm font-extrabold ${TXT_PRIMARY} mt-0.5 block`}>{extractedData.semesterName}</span>
-                        </div>
-                        <div>
-                          <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Calculated SGPA</span>
-                          <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 block">{extractedData.sgpa}</span>
-                        </div>
-                        <div className="col-span-2 pt-2 border-t border-border/50">
-                          <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Parsed Total Credits</span>
-                          <span className={`text-sm font-extrabold ${TXT_PRIMARY} mt-0.5 block`}>{extractedData.credits} Credits</span>
-                        </div>
-                      </div>
+                          {/* Semester Info */}
+                          <div className="grid grid-cols-2 gap-4 mb-6 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/60 dark:border-white/5">
+                            <div>
+                              <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Target Destination</span>
+                              <span className={`text-sm font-extrabold ${TXT_PRIMARY} mt-0.5 block`}>{extractedData.semesterName}</span>
+                            </div>
+                            <div>
+                              <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Semester SGPA</span>
+                              <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 block">{extractedData.sgpa}</span>
+                            </div>
+                            <div className="col-span-2 pt-2 border-t border-border/50">
+                              <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block`}>Semester Credits</span>
+                              <span className={`text-sm font-extrabold ${TXT_PRIMARY} mt-0.5 block`}>{extractedData.credits} Credits</span>
+                            </div>
+                          </div>
 
-                      {/* Course Breakdown */}
-                      <div className="space-y-3 mb-6">
-                        <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block px-1`}>Extracted Grades List</span>
-                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                          {extractedData.subjects.map((sub, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border text-xs">
-                              <span className={`font-bold ${TXT_PRIMARY} truncate max-w-[200px]`}>{sub.name}</span>
-                              <div className="flex items-center gap-3">
-                                <span className={`text-[10px] ${TXT_MUTED}`}>{sub.credits} Credits</span>
-                                <Badge variant="brand" className="font-extrabold px-2">{sub.grade}</Badge>
+                          {/* Course Breakdown */}
+                          <div className="space-y-3 mb-6">
+                            <span className={`text-[10px] font-bold ${TXT_MUTED} uppercase tracking-wider block px-1`}>Extracted Grades List</span>
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                              {extractedData.subjects.map((sub, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border text-xs">
+                                  <span className={`font-bold ${TXT_PRIMARY} truncate max-w-[200px]`}>{sub.name}</span>
+                                  <div className="flex items-center gap-3">
+                                    <span className={`text-[10px] ${TXT_MUTED}`}>{sub.credits} Credits</span>
+                                    <Badge variant="brand" className="font-extrabold px-2">{sub.grade}</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Commit Buttons */}
+                          <div className="space-y-2">
+                            <Button
+                              onClick={handleCommitData}
+                              variant="primary"
+                              className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/25"
+                            >
+                              Commit parsed records to database
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setUploadState('idle');
+                                setUploadedFile(null);
+                                setExtractedData(null);
+                              }}
+                              variant="ghost"
+                              className="w-full text-xs font-semibold"
+                            >
+                              Abort Scan
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="ocr-empty-preview"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <EmptyState
+                        align="center"
+                        size="lg"
+                        showMockGraph={true}
+                        icon={<BrainCircuit size={20} />}
+                        title="Academic Forecast Preview"
+                        description="Upload your latest university marksheet, semester grades PDF, or report card screenshots on the left to activate predictions."
+                        className="min-h-[420px] flex flex-col justify-center"
+                      />
+                    </motion.div>
+                  )
+                ) : (
+                  (manualSubjects.length > 0 || manualSemName.trim().length > 0 || manualSgpa.trim().length > 0) ? (
+                    <motion.div
+                      key="manual-live-preview"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      className="space-y-6"
+                    >
+                      <Card className="p-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/5 rounded-full filter blur-xl z-0 pointer-events-none" />
+                        <div className="relative z-10 space-y-6">
+                          <div className="flex items-center gap-2.5 mb-4">
+                            <div className="h-8 w-8 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-500 flex items-center justify-center">
+                              <Sparkles size={16} className="animate-pulse" />
+                            </div>
+                            <h3 className={`font-sans font-black text-lg ${TXT_PRIMARY} tracking-tight`}>
+                              Live Academic Summary
+                            </h3>
+                          </div>
+
+                          {/* Projected SGPA and Credits Mapped */}
+                          <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/60 dark:border-white/5">
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold block">Semester SGPA</span>
+                              <span className="text-2xl font-black text-brand-500 mt-1 block">
+                                {manualSubjects.length > 0 ? liveCalculatedSgpa.toFixed(2) : (Number(manualSgpa) || 0.0).toFixed(2)}
+                              </span>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 block leading-tight">
+                                {manualSubjects.length > 0 ? "Based on entered subjects and grade weights" : "Based on manual entry"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold block">Semester Credits</span>
+                              <span className={`text-2xl font-black ${TXT_PRIMARY} mt-1 block`}>
+                                {manualSubjects.length > 0 ? manualSubjects.reduce((sum, s) => sum + s.credits, 0) : (Number(manualCredits) || 0)}
+                              </span>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 block leading-tight">
+                                {manualSubjects.length > 0 ? "Sum of course credits" : "Configured value"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Grade Weights Mathematical Formula Transparent Footnote */}
+                          <div className="p-3 bg-slate-50/50 dark:bg-white/[0.01] rounded-xl border border-slate-200/50 dark:border-white/5 text-[10px] text-slate-450 dark:text-slate-500 text-left font-mono">
+                            <span className="font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Formula:</span>
+                            SGPA = Σ(Grade Points × Credits) / Σ(Credits)
+                          </div>
+
+                          {/* Subject Grade Distribution */}
+                          {manualSubjects.length > 0 && (
+                            <div className="space-y-2 text-left">
+                              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block px-1">
+                                Subject Distribution
+                              </span>
+                              <div className="grid grid-cols-4 gap-2 text-center">
+                                {['O', 'A+', 'A', 'Other'].map(g => {
+                                  const count = g === 'Other'
+                                    ? manualSubjects.filter(s => !['O', 'A+', 'A'].includes(s.grade)).length
+                                    : manualSubjects.filter(s => s.grade === g).length;
+                                  return (
+                                    <div key={g} className="bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/60 dark:border-white/5 p-2 rounded-lg text-xs">
+                                      <span className="font-bold text-slate-400 block">{g}</span>
+                                      <span className={`font-extrabold ${TXT_PRIMARY}`}>{count}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          )}
 
-                      {/* Commit Buttons */}
-                      <div className="space-y-2">
-                        <Button
-                          onClick={handleCommitData}
-                          variant="primary"
-                          className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/25"
-                        >
-                          Commit parsed records to database
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setUploadState('idle');
-                            setUploadedFile(null);
-                            setExtractedData(null);
-                          }}
-                          variant="ghost"
-                          className="w-full text-xs font-semibold"
-                        >
-                          Abort Scan
-                        </Button>
+                          {/* Conditional Insights: Strongest Subjects */}
+                          {manualSubjects.length >= 3 && manualSubjects.some(s => ['O', 'A+', 'A'].includes(s.grade)) && (
+                            <div className="p-3 rounded-xl bg-emerald-500/[0.02] border border-emerald-500/15 text-xs text-left">
+                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 block mb-1">🔥 Strongest subjects</span>
+                              <p className="text-slate-500 dark:text-slate-450 font-medium leading-relaxed">
+                                {manualSubjects.filter(s => ['O', 'A+', 'A'].includes(s.grade)).map(s => s.name).join(', ')}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Conditional Insights: Improvement Suggestions */}
+                          {manualSubjects.length >= 2 && (
+                            <div className="p-3 rounded-xl bg-amber-500/[0.02] border border-amber-500/15 text-xs text-left">
+                              <span className="font-extrabold text-amber-600 dark:text-amber-400 block mb-1">💡 Study Focus Recommendations</span>
+                              <ul className="list-disc pl-4 text-slate-500 dark:text-slate-450 font-medium leading-relaxed space-y-1">
+                                {manualSubjects.some(s => ['B+', 'B', 'C', 'F'].includes(s.grade)) ? (
+                                  <li>Focus more revision time on lower-performing subjects: {manualSubjects.filter(s => ['B+', 'B', 'C', 'F'].includes(s.grade)).map(s => s.name).join(', ')}.</li>
+                                ) : (
+                                  <li>Excellent standing maintained. Continue current study consistency guidelines.</li>
+                                )}
+                                <li>Your strongest performance trend appears in technical subjects.</li>
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Commit Manual Record Button */}
+                          <div className="pt-2">
+                            <Button
+                              onClick={handleManualCommit}
+                              variant="primary"
+                              className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/25"
+                            >
+                              Save Semester Record
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="manual-empty-preview"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="border border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 text-center flex flex-col items-center justify-center min-h-[400px] bg-slate-50/[0.02] dark:bg-white/[0.005]"
+                    >
+                      <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 flex items-center justify-center mb-4 text-slate-400 dark:text-slate-500">
+                        <BookOpen size={20} />
                       </div>
-                      </div>
-                    </Card>
-                  </motion.div>
-                ) : (
-                  <EmptyState
-                    align="center"
-                    size="lg"
-                    showMockGraph={true}
-                    icon={<BrainCircuit size={20} />}
-                    title="AI Forecast Engine Awaiting Data"
-                    description="Upload your latest university marksheet, semester grades PDF, or report card screenshots on the left to activate predictions."
-                    className="min-h-[420px] flex flex-col justify-center"
-                  >
-                    <div className="flex flex-col gap-2 max-w-xs mx-auto mt-2 pt-2 border-t border-black/[0.04] dark:border-white/[0.04] text-[11px] font-semibold text-muted-foreground select-none pointer-events-none">
-                      <div className="flex items-center gap-2 justify-center text-brand-600 dark:text-brand-400">
-                        <span className="text-emerald-500 font-extrabold">✓</span> SGPA validation ready
-                      </div>
-                      <div className="flex items-center gap-2 justify-center opacity-70">
-                        <span className="text-brand-500/60 font-extrabold">✓</span> Subject analysis pending
-                      </div>
-                      <div className="flex items-center gap-2 justify-center opacity-70">
-                        <span className="text-brand-500/60 font-extrabold">✓</span> Forecast engine awaiting data
-                      </div>
-                    </div>
-                  </EmptyState>
+                      <h3 className={`font-sans font-bold text-sm ${TXT_PRIMARY}`}>
+                        Academic Forecast Preview
+                      </h3>
+                      <p className={`text-xs ${TXT_MUTED} mt-2 max-w-xs leading-relaxed`}>
+                        Add semester details and subjects to generate your academic forecast.
+                      </p>
+                    </motion.div>
+                  )
                 )}
               </AnimatePresence>
             </div>

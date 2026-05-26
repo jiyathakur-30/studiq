@@ -25,9 +25,9 @@ export const Card: React.FC<CardProps> = ({
   };
 
   const cardStyles = `
-    premium-glass-card rounded-xl shadow-sm
-    ${hoverEffect ? 'hover:scale-[1.01] hover:border-brand-500/30 hover:shadow-glow-brand' : ''}
-    ${onClick ? 'cursor-pointer active:scale-95' : ''}
+    premium-glass-card rounded-2xl shadow-sm border border-slate-200/60 dark:border-white/5
+    ${hoverEffect ? 'hover:scale-[1.005] hover:border-slate-300 dark:hover:border-white/10 hover:shadow-md' : ''}
+    ${onClick ? 'cursor-pointer active:scale-98' : ''}
     transition-all duration-300 ${className}
   `;
 

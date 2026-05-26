@@ -1,12 +1,233 @@
 import { Subject, Attendance, Assignment, StudySession } from '../services/mockData';
 import { StudyPlanningContext } from '../context/store';
 
-// Helper to determine if a course is classified in challenging technical/quantitative cluster
-const isChallengingSubject = (name: string): boolean => {
-  return /math|calc|alg|syst|quant|phys|chem|code|dbms|structures/i.test(name || '');
+// Dynamic Pool of syllabus-specific topics to ensure dynamic rotation and prevent repetitive generation
+const getTopicForDayAndSession = (subjectName: string, day: number, type: 'conceptual' | 'numerical' | 'light'): string => {
+  const name = subjectName.toLowerCase();
+  let pool = {
+    conceptual: [
+      'Core Conceptual Principles & Theoretical Frameworks',
+      'Lecture Notes Outline & Structural Relationship Analysis',
+      'High-Level Concept Mapping & Core Definitions review',
+      'Primary Architectural Concepts & Foundational Paradigms'
+    ],
+    numerical: [
+      'Practical Study Exercises & Application Mechanics',
+      'Analytical Problem-Solving & Scenario Worksheets',
+      'Interactive Case Studies & Real-World Demonstrations',
+      'Complex Formula Application & Numerical Drill Sets'
+    ],
+    light: [
+      'Flashcard Active Recall & High-Speed Self-Quiz',
+      'Past Year Questions (PYQs) Mock Practice Sweep',
+      'Lingering Doubt Resolution & Syllabus Boundary Check',
+      'Active Summary Cheat-Sheet Construction & Light Recall'
+    ]
+  };
+
+  if (name.includes('architecture') || name.includes('computer org') || name.includes('systems')) {
+    pool = {
+      conceptual: [
+        'CPU Organization & Instruction Cycles',
+        'Instruction Level Parallelism & Pipelining',
+        'Virtual Memory & Address Translation',
+        'Flynn Classification & Multiprocessor Theory'
+      ],
+      numerical: [
+        'Cache hit/miss rate calculations',
+        'Addressing Mode Numerical Problems',
+        'Floating Point Arithmetic Problems',
+        'Pipeline Hazard Speedup Calculations'
+      ],
+      light: [
+        'Previous Year Exam Questions Review',
+        'Flashcard Recall on I/O DMA Transfers',
+        'Addressing Modes Quick Summary',
+        'Microprogram Control Units Quick Recall'
+      ]
+    };
+  } else if (name.includes('math') || name.includes('calc') || name.includes('algebra')) {
+    pool = {
+      conceptual: [
+        'Limits, Continuity & Mean Value Theorem',
+        'Linear Dependence & Eigenvalues',
+        'Differential Equations Theory',
+        'Vector Calculus Theorems'
+      ],
+      numerical: [
+        'Integration & Area Numerical Exercises',
+        'Matrix Determinants & Row Reductions',
+        'Vector Calculus Practice Problems',
+        'Eigenvalue/Eigenvector Calculations'
+      ],
+      light: [
+        'Past Exam Calculus Questions Sweep',
+        'Rapid Matrix Properties Recall',
+        'Important Formula Cheat-Sheet Review',
+        'Mock Limits Questions Quiz'
+      ]
+    };
+  } else if (name.includes('code') || name.includes('datastruct') || name.includes('algorithm') || name.includes('structures')) {
+    pool = {
+      conceptual: [
+        'Asymptotic Time Complexity Analysis',
+        'Binary Search Tree & AVL Rotations',
+        'Recursion & Backtracking Graph Search',
+        'Graph Traversals & DFS/BFS Theory'
+      ],
+      numerical: [
+        'Linked List Manipulation Code Problems',
+        'Two-Pointer Array Problem Solving',
+        'Sorting & Searching Implementation Tasks',
+        'Binary Tree Construction Problems'
+      ],
+      light: [
+        'Dynamic Programming Conceptual Review',
+        'Short Coding Interview Mock Questions',
+        'Data Structures Properties Flashcards',
+        'Time Complexity Cheat Sheet Check'
+      ]
+    };
+  } else if (name.includes('dbms') || name.includes('database')) {
+    pool = {
+      conceptual: [
+        'Relational Algebra & Schema Design',
+        'Functional Dependencies & 3NF/BCNF',
+        'ACID Transactions & Locking Protocols',
+        'ER Diagrams & Schema Mapping'
+      ],
+      numerical: [
+        'Complex SQL Join Query Writing',
+        'Normal Form Decomposition Exercises',
+        'Index Query Optimization Exercises',
+        'Relational Tuple Calculus Queries'
+      ],
+      light: [
+        'DBMS Past Year Questions Sweep',
+        'Relational Model Definitions Quiz',
+        'Key Constraints Summary Review',
+        'Transaction Recovery Rules Quick Read'
+      ]
+    };
+  }
+
+  const conceptualIdx = (day - 1) % pool.conceptual.length;
+  const numericalIdx = (day) % pool.numerical.length;
+  const lightIdx = (day + 1) % pool.light.length;
+
+  if (type === 'conceptual') return pool.conceptual[conceptualIdx];
+  if (type === 'numerical') return pool.numerical[numericalIdx];
+  return pool.light[lightIdx];
 };
 
-// Main heuristics generation function
+interface StudySessionBlock {
+  name: string;
+  duration: number; // in hours
+  topic: string;
+  focusGoal: string;
+  type: 'conceptual' | 'numerical' | 'light';
+}
+
+// Generate structured study slots based on daily hours and progressive cognitive intensity
+const generateDailySessions = (subjectName: string, day: number, hours: number): StudySessionBlock[] => {
+  const blocks: StudySessionBlock[] = [];
+  
+  if (hours <= 3) {
+    const h = hours / 2;
+    blocks.push({
+      name: 'Session 1',
+      duration: h,
+      topic: getTopicForDayAndSession(subjectName, day, 'conceptual'),
+      focusGoal: 'Master key conceptual guidelines, theoretical structures, and important definitions.',
+      type: 'conceptual'
+    });
+    blocks.push({
+      name: 'Session 2',
+      duration: h,
+      topic: getTopicForDayAndSession(subjectName, day, 'light'),
+      focusGoal: 'Run dynamic recall drills and test formulas using standard study cards.',
+      type: 'light'
+    });
+  } else if (hours <= 5) {
+    const conceptualHrs = Math.max(1.5, Math.round(hours * 0.45 * 2) / 2);
+    const numericalHrs = Math.max(1, Math.round(hours * 0.35 * 2) / 2);
+    const lightHrs = Math.max(0.5, hours - conceptualHrs - numericalHrs);
+    
+    blocks.push({
+      name: 'Session 1',
+      duration: conceptualHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'conceptual'),
+      focusGoal: 'Formulate core theoretical associations and dissect key concepts.',
+      type: 'conceptual'
+    });
+    blocks.push({
+      name: 'Session 2',
+      duration: numericalHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'numerical'),
+      focusGoal: 'Apply algorithmic/calculus operations to solve core textbook numerical problems.',
+      type: 'numerical'
+    });
+    blocks.push({
+      name: 'Session 3',
+      duration: lightHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'light'),
+      focusGoal: 'Complete past exam question sheets and record short recap notes.',
+      type: 'light'
+    });
+  } else {
+    // 6 hours or more (e.g., 7 hours+)
+    const conceptualHrs = Math.max(1.5, Math.round(hours * 0.35 * 2) / 2);
+    const numericalHrs = Math.max(1.5, Math.round(hours * 0.30 * 2) / 2);
+    const lightReviewHrs = Math.max(1, Math.round(hours * 0.20 * 2) / 2);
+    const pyqHrs = Math.max(0.5, hours - conceptualHrs - numericalHrs - lightReviewHrs);
+    
+    blocks.push({
+      name: 'Session 1',
+      duration: conceptualHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'conceptual'),
+      focusGoal: 'Analyze intensive technical principles and outline primary study schemas.',
+      type: 'conceptual'
+    });
+    blocks.push({
+      name: 'Session 2',
+      duration: numericalHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'numerical'),
+      focusGoal: 'Work through active numerical drills and practice computational steps.',
+      type: 'numerical'
+    });
+    blocks.push({
+      name: 'Session 3',
+      duration: lightReviewHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'light'),
+      focusGoal: 'Run quick flashcard quizzes and complete pending assignment checks.',
+      type: 'light'
+    });
+    blocks.push({
+      name: 'Session 4',
+      duration: pyqHrs,
+      topic: getTopicForDayAndSession(subjectName, day, 'light'),
+      focusGoal: 'Sweep through high-probability exam questions under timed conditions.',
+      type: 'light'
+    });
+  }
+  
+  return blocks;
+};
+
+// Helper to determine adaptive break recovery times based on daily available focus hours
+const getBreakDurationText = (totalHours: number, sessionIdx: number, totalSessions: number): string => {
+  if (totalHours <= 3) return '10m recovery gap';
+  if (totalHours <= 6) return '15m rest break';
+  
+  // 7h+ intensive daily schedules feature an extended recovery midpoint gap
+  const midpoint = Math.floor(totalSessions / 2);
+  if (sessionIdx === midpoint) {
+    return '30m extended recovery block';
+  }
+  return '15m standard rest gap';
+};
+
+// Main heuristics study planner generation function
 export const generateInteractiveStudyPlan = (
   ctx: StudyPlanningContext,
   subjects: Subject[],
@@ -20,17 +241,20 @@ export const generateInteractiveStudyPlan = (
   recommendedHours: number;
 } => {
   const days = ctx.deadlineDays || 5;
+  
+  // Strictest Time Consistency: available hours directly dictate the daily session plan totals
   const availableHours = ctx.dailyAvailableHours || 4;
+  const recommendedHours = availableHours;
+
+  const targetSubjectName = ctx.goalType || '';
+  const isMultiSubject = targetSubjectName.toLowerCase().includes('all') || targetSubjectName.trim() === '';
 
   // 1. COMPUTE SUBJECT PRIORITY SCORES
   const prioritizedSubjects = subjects.map(sub => {
-    // A. Exam Urgency (Urgent deadline match or general focus)
-    const isTarget = ctx.weakSubjects.includes(sub.name) || ctx.weakSubjects.includes(sub.id);
-    let examUrgency = isTarget ? 10 : 4;
+    const isTarget = !isMultiSubject && (sub.name.toLowerCase() === targetSubjectName.toLowerCase() || sub.id === targetSubjectName);
+    let examUrgency = isTarget ? 20 : 4;
     if (days <= 3) examUrgency += 2;
-    else if (days >= 14) examUrgency -= 2;
 
-    // B. Backlog Weight (Incomplete assignment backlog value)
     const subAssignments = assignments.filter(a => a.subjectId === sub.id && a.status !== 'done');
     let backlogScore = 0;
     subAssignments.forEach(a => {
@@ -40,12 +264,9 @@ export const generateInteractiveStudyPlan = (
     });
     const backlogWeight = Math.min(10, backlogScore * 1.5);
 
-    // C. Weak Subject Weight (Explicit tag or challenging quantitative cluster)
     const isWeak = ctx.weakSubjects.includes(sub.name) || ctx.weakSubjects.includes(sub.id);
-    const isHard = isChallengingSubject(sub.name);
-    const weakSubjectWeight = isWeak ? 10 : isHard ? 7 : 3;
+    const weakSubjectWeight = isWeak ? 10 : 3;
 
-    // D. Attendance Risk Factor
     const attRecord = attendance.find(a => a.subjectId === sub.id);
     let attendancePct = 100;
     let attendanceRisk = 0;
@@ -54,167 +275,102 @@ export const generateInteractiveStudyPlan = (
       const total = attRecord.records.filter(r => r.status !== 'cancelled').length;
       attendancePct = total > 0 ? (attended / total) * 100 : 100;
 
-      if (attendancePct < 75) {
-        attendanceRisk = 10; // Critically under target
-      } else if (attendancePct < 80) {
-        attendanceRisk = 6;  // Near warning margin
-      } else {
-        attendanceRisk = 1;
-      }
+      if (attendancePct < 75) attendanceRisk = 10;
+      else if (attendancePct < 80) attendanceRisk = 6;
     }
 
-    // E. Focus Consistency
-    // Erratic streaks trigger a plan with higher initial structural support (habit-builder)
     const focusConsistency = Math.max(1, 10 - (studyStreak * 1.5));
 
-    // Weighted Formula:
-    // Urgency (30%) + Backlog (25%) + Subject Weakness (20%) + Attendance Risk (10%) + Focus Consistency (15%)
-    const priorityScore =
-      examUrgency * 0.30 +
-      backlogWeight * 0.25 +
+    let priorityScore =
+      examUrgency * 0.40 +
+      backlogWeight * 0.20 +
       weakSubjectWeight * 0.20 +
       attendanceRisk * 0.10 +
-      focusConsistency * 0.15;
+      focusConsistency * 0.10;
+
+    if (isTarget) {
+      priorityScore += 100; // Unconditional prioritisation boost for explicitly requested subject
+    }
 
     return {
       subject: sub,
       priorityScore,
       attendancePct,
-      backlogCount: subAssignments.length,
-      isHard
+      backlogCount: subAssignments.length
     };
   });
 
-  // Sort subjects by priority score descending
   prioritizedSubjects.sort((a, b) => b.priorityScore - a.priorityScore);
 
-  // 2. CHOOSE DYNAMIC STUDY INTENSITY SYSTEM
   let intensityMode = 'Balanced Study';
-  let hoursMultiplier = 1.0;
+  if (days <= 3) intensityMode = 'Exam Emergency Mode';
+  else if (days <= 7) intensityMode = 'Intensive Prep';
+  else if (days >= 14) intensityMode = 'Light Revision';
 
-  if (ctx.targetIntensity === 'high') {
-    intensityMode = 'Deep Focus Sprint';
-    hoursMultiplier = 1.25;
-  } else if (ctx.targetIntensity === 'light') {
-    intensityMode = 'Light Revision';
-    hoursMultiplier = 0.75;
+  // Determine active subjects to include
+  let subjectsToInclude = [prioritizedSubjects[0]];
+  
+  if (isMultiSubject) {
+    subjectsToInclude = prioritizedSubjects.slice(0, 3);
   } else {
-    // Auto-infer based on deadline and backlog counts
-    const totalBacklog = assignments.filter(a => a.status !== 'done').length;
-    if (days <= 3) {
-      intensityMode = 'Exam Emergency Mode';
-      hoursMultiplier = 1.5;
-    } else if (days <= 7) {
-      intensityMode = 'Deep Focus Sprint';
-      hoursMultiplier = 1.25;
-    } else if (totalBacklog >= 4) {
-      intensityMode = 'Recovery & Catch-Up';
-      hoursMultiplier = 1.1;
-    } else if (days >= 14) {
-      intensityMode = 'Light Revision';
-      hoursMultiplier = 0.8;
+    // Single-Subject Allocation: Secondary courses are ONLY mapped if attendance is critically under target
+    const criticalSecondaries = prioritizedSubjects.slice(1).filter(ps => ps.attendancePct < 75);
+    if (criticalSecondaries.length > 0) {
+      subjectsToInclude.push(criticalSecondaries[0]);
     }
   }
 
-  // Recommended daily study hours (capped at reasonable human threshold of 6 hours)
-  const recommendedHours = Math.min(6, Math.max(1.5, Math.round(availableHours * hoursMultiplier * 2) / 2));
+  // 2. BUILD DAILY SCHEDULES
+  let output = '';
 
-  // 3. STRUCTURE THE STUDY PLAN BODY
-  let output = `# 📅 AI Strategic Planner: ${intensityMode}\n\n`;
-  output += `> **Strategic Target**: A **${days}-day study roadmap** calibrated at **${recommendedHours} hours/day** targeting your highest academic priority courses. `;
-  
-  if (ctx.isPomodoroFormat) {
-    output += `Formatted into structured **25/5 Pomodoro blocks** for enhanced focus preservation.\n\n`;
-  } else {
-    output += `Calibrated using **45-minute deep focus sessions** and cognitive rest intervals.\n\n`;
-  }
-
-  // Generate Daily Breakdown
-  output += `## 🕒 Daily Study Breakdown\n\n`;
-  
   for (let day = 1; day <= days; day++) {
-    output += `### 🗓️ Day ${day}\n`;
+    output += `### 🗓️ Day ${day}\n\n`;
 
-    // Dynamic phase text based on progression
-    const isInitial = day <= Math.ceil(days / 3);
-    const isConcluding = day > Math.floor(days * 0.7);
+    // Distribute hours across active subjects
+    subjectsToInclude.forEach((ps, subIdx) => {
+      if (!ps) return;
 
-    // Distribute daily hours across top subjects
-    let remainingDailyHours = recommendedHours;
-    let slotNum = 1;
-
-    prioritizedSubjects.forEach((ps, index) => {
-      if (remainingDailyHours <= 0) return;
-
-      // Primary course gets 60% of time, secondary gets 40%
-      let allocatedHours = index === 0 ? Math.ceil(recommendedHours * 0.6 * 2) / 2 : Math.floor(recommendedHours * 0.4 * 2) / 2;
-      allocatedHours = Math.min(allocatedHours, remainingDailyHours);
-      if (allocatedHours <= 0) return;
-
-      remainingDailyHours -= allocatedHours;
-
-      // Contextualize tasks based on timeline phase
-      let taskAction = '';
-      if (isConcluding) {
-        taskAction = ps.backlogCount > 0 ? `Practice testing & overdue assignments sweep` : `High-frequency recall & full mock exam simulation`;
-      } else if (isInitial) {
-        taskAction = `Concept mapping, formula breakdown & core note reviews`;
-      } else {
-        taskAction = ps.backlogCount > 0 ? `Active assignment clearing & practice questions` : `Feynman Technique recall review & active practice sessions`;
+      // Subject weighting: Target subject receives at least 70-80% allocation
+      let subjectHours = recommendedHours;
+      if (subjectsToInclude.length > 1) {
+        subjectHours = subIdx === 0 
+          ? Math.max(1, Math.round(recommendedHours * 0.75 * 2) / 2)
+          : Math.max(0.5, recommendedHours - Math.max(1, Math.round(recommendedHours * 0.75 * 2) / 2));
       }
 
-      if (ctx.isPomodoroFormat) {
-        const pomodoros = Math.round((allocatedHours * 60) / 30);
-        output += `- \`[ ]\` **Slot ${slotNum}**: ${ps.subject.name} – ${allocatedHours}h (${pomodoros} × 🍅 blocks) \n`;
-        output += `  *Focus: ${taskAction}*\n`;
-      } else {
-        output += `- \`[ ]\` **Slot ${slotNum}**: ${ps.subject.name} – ${allocatedHours}h \n`;
-        output += `  *Focus: ${taskAction}*\n`;
-      }
+      output += `**Subject Focus**: **${ps.subject.name}** (${subjectHours}h)\n\n`;
 
-      slotNum++;
+      const sessions = generateDailySessions(ps.subject.name, day, subjectHours);
+      
+      sessions.forEach((session, sIdx) => {
+        const breakText = getBreakDurationText(recommendedHours, sIdx + 1, sessions.length);
+        
+        const clockIcons = ['🕘', '🕛', '🕒', '🕔'];
+        const icon = clockIcons[sIdx % clockIcons.length];
+
+        output += `${icon} **${session.name} — ${session.duration}h**\n`;
+        output += `*${session.topic}*\n`;
+        output += `*Goal: ${session.focusGoal}*\n\n`;
+
+        if (sIdx < sessions.length - 1) {
+          output += `☕ **Break — ${breakText}**\n\n`;
+        }
+      });
     });
 
-    // Spaced revision or Recovery gaps
-    if (day % 2 === 0) {
-      output += `- \`[ ]\` **Spaced Recall**: 30m rapid flashcard recall across all subjects.\n`;
-    } else {
-      output += `- \`[ ]\` **Cognitive Buffer**: 15m mental recovery gap between high-intensity study blocks.\n`;
+    if (day < days) {
+      output += `---\n\n`;
     }
-
-    output += `\n`;
   }
 
-  // 4. EXPLAINABILITY SECTION
-  output += `## 🧠 Explainability: Why this plan?\n\n`;
-  output += `This structured blueprint automatically balanced the active risk vectors scanned from your profile:\n`;
-
-  const topSubject = prioritizedSubjects[0];
-  if (topSubject) {
-    output += `- **Primary Priority Allocation**: **${topSubject.subject.name}** was allocated the largest focus window due to `;
-    if (topSubject.attendancePct < 75) {
-      output += `its critical attendance level of **${Math.round(topSubject.attendancePct)}%** (below your 75% target threshold).`;
-    } else if (topSubject.backlogCount > 0) {
-      output += `an active backlog of **${topSubject.backlogCount} outstanding tasks** needing immediate clearing.`;
-    } else {
-      output += `its classification as a challenging **${topSubject.isHard ? 'technical course' : 'academic subject'}** on your planner list.`;
-    }
-    output += `\n`;
-  }
-
-  // Focus habits / Streak explainability
-  if (studyStreak <= 1) {
-    output += `- **Habit Builder Buffer**: Recent focus streaks are irregular. Short spaced blocks are scheduled initially to reinforce study habits without causing cognitive fatigue.\n`;
+  // 3. CLEAN RECOMMENDATIONS BLOCK (Replaces corporate telemetry explaining graphs)
+  output += `### 💡 Recommendation\n`;
+  if (days <= 3) {
+    output += `- Prioritize solving Past Year Questions (PYQs) and high-frequency numerical patterns tonight. Avoid starting entirely new theory topics close to the exam.\n`;
+    output += `- Focus on memory recall techniques and secure a good night's sleep to maximize conceptual retention.`;
   } else {
-    output += `- **Streak Optimization**: Study blocks are optimized to leverage your healthy **${studyStreak}-day streak momentum**.\n`;
-  }
-
-  // Burnout check
-  const totalWeeklyHours = Math.round(studySessions.reduce((acc, s) => acc + s.durationMinutes, 0) / 60);
-  if (totalWeeklyHours > 12) {
-    output += `- **Fatigue Recovery Guard**: Heavy study frequency (approx. **${totalWeeklyHours} hours** logged recently) was detected. Injected active recovery buffers to mitigate burnout risks.\n`;
-  } else {
-    output += `- **Intensity Ramp-up**: Focus hours scale progressively to matches your available daily target without overloading your schedules.\n`;
+    output += `- Tackle heavy conceptual theories in your opening session when your mental energy is peak. Save lighter assignments or recall checks for the final block.\n`;
+    output += `- Maintain these consistent study sessions to lock in your daily streak and build lasting focus habits.`;
   }
 
   return {
@@ -223,3 +379,4 @@ export const generateInteractiveStudyPlan = (
     recommendedHours
   };
 };
+

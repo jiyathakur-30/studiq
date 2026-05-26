@@ -429,7 +429,8 @@ export const AICoach: React.FC = () => {
       setFlowState({});
 
       const res = generateInteractiveStudyPlan(ctx as any, subjects, attendance, assignments, studySessions, userStreak);
-      return `📅 **Study Plan Complete!**\n\nI have generated your custom ${durationDays}-day sprint for **${subjectName}** (${dailyHours}h daily focus):\n\n${res.planText}`;
+      const timelineText = durationDays === 1 ? 'Tomorrow' : `In ${durationDays} Days`;
+      return `📘 **${durationDays}-Day Study Plan — ${subjectName}**\n\n**Available Study Time**: ${dailyHours} hours daily\n**Exam**: ${timelineText}\n\n${res.planText}`;
     }
 
     if (flowToUse === 'attendance_help' || q.includes('attendance') || q.includes('absent') || q.includes('bunk') || q.includes('class')) {

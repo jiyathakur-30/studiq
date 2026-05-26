@@ -47,6 +47,16 @@ const TXT_MUTED = "text-slate-500 dark:text-slate-400 font-medium";
 // Standardized Premium Glassmorphism Card Surface
 const CARD_SURFACE = "bg-card border border-border shadow-xl backdrop-blur-xl rounded-2xl p-5 overflow-hidden transition-all duration-300 hover:border-slate-300 dark:hover:border-white/20 [.cyberpunk_&]:hover:border-cyan-500/30 relative z-10";
 
+export interface StudyPlan {
+  subjectId: string;
+  examDate: string;
+  chapters: string[];
+  confidenceLevel: number;
+  studyHoursGoal: number;
+  adjustments: any[];
+  syncStats: any;
+}
+
 export const Scheduler: React.FC = () => {
   const focusAnalytics = useFocusAnalytics(); // Global adaptive analytics hook
   const {
@@ -85,6 +95,20 @@ export const Scheduler: React.FC = () => {
 
   // Sync details state
   const [lastSyncResult, setLastSyncResult] = useState<any>(null);
+
+  // Active Revision Roadmap State
+  const [generatedPlan, setGeneratedPlan] = useState<StudyPlan | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [completedChapters, setCompletedChapters] = useState<string[]>([]);
+
+  // Roadmap auto-scroll Ref & Effect
+  const roadmapRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (generatedPlan && roadmapRef.current) {
+      roadmapRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [generatedPlan]);
 
   const showNotification = (msg: string, type: 'success' | 'warning' = 'success') => {
     setNotification({ message: msg, type });
@@ -152,6 +176,7 @@ export const Scheduler: React.FC = () => {
       return;
     }
     setIsGenerating(true);
+    setIsGeneratingPlan(true);
     try {
       const result = await generateAcademicPlan({
         subjectId: selectedSubjectId,
@@ -163,6 +188,16 @@ export const Scheduler: React.FC = () => {
       if (result.success) {
         setAdjustments(result.adjustments || []);
         setLastSyncResult(result.syncStats);
+        setGeneratedPlan({
+          subjectId: selectedSubjectId,
+          examDate,
+          chapters,
+          confidenceLevel,
+          studyHoursGoal,
+          adjustments: result.adjustments || [],
+          syncStats: result.syncStats
+        });
+        setCompletedChapters([]); // Reset completed chapters on new plan generation
         showNotification('Syllabus-aware study plan calculated successfully!', 'success');
       }
     } catch (error) {
@@ -170,6 +205,7 @@ export const Scheduler: React.FC = () => {
       showNotification('Optimized plan generation failed. Retrying in fallback offline mode...', 'warning');
     } finally {
       setIsGenerating(false);
+      setIsGeneratingPlan(false);
     }
   };
 
@@ -792,8 +828,269 @@ export const Scheduler: React.FC = () => {
         </AnimatePresence>
       </div>
 
+      {/* 4.5 ACTIVE REVISION ROADMAP & EXPERIENCE UPGRADE */}
+      <AnimatePresence mode="wait">
+        {generatedPlan ? (
+          <motion.div
+            key="roadmap-active"
+            ref={roadmapRef}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ type: 'spring', stiffness: 100, damping: 15 }}
+            className={`${CARD_SURFACE} border-brand-500/40 dark:border-brand-500/30 shadow-2xl relative overflow-hidden`}
+          >
+            {/* Ambient subtle glow background */}
+            <div className="absolute top-0 right-0 -mt-24 -mr-24 w-72 h-72 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 -mb-24 -ml-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-white/[0.08] pb-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
+                  <Sparkles size={18} className="animate-pulse" />
+                </div>
+                <div>
+                  <h2 className={`text-sm font-extrabold ${TXT_PRIMARY} flex items-center gap-2`}>
+                    Active Revision Roadmap
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider animate-pulse">
+                      Calibrated & Active
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                    Tailored, behavior-aware revision schedule
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => {
+                    const timelineEl = document.getElementById('chronological-timeline');
+                    if (timelineEl) {
+                      timelineEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-brand-600/10 hover:bg-brand-600 border border-brand-500/20 hover:border-transparent text-brand-750 dark:text-brand-400 hover:text-white text-xs font-black transition active:scale-95 rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  Jump to Study Blocks <ArrowRight size={13} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Plan Summary and Progress */}
+              <div className="lg:col-span-7 space-y-6">
+                {/* Visual Grid Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-bold">Target Course</span>
+                    <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-1 block truncate">
+                      {subjects.find(s => s.id === generatedPlan.subjectId)?.name || 'Course Subject'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-bold">Exam Date</span>
+                    <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-1 block">
+                      {new Date(generatedPlan.examDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-bold">Revision Volume</span>
+                    <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-1 block">
+                      {generatedPlan.studyHoursGoal} Hours Total
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-bold">Confidence Boost</span>
+                    <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 block">
+                      +{Math.min(98 - generatedPlan.confidenceLevel * 20, 25)}% Expected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Chapter Syllabus Progress Tracker */}
+                <div className="bg-slate-50 dark:bg-white/[0.01] border border-slate-200 dark:border-white/5 rounded-2xl p-5">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Chapter Coverage Progress
+                    </h3>
+                    <span className="text-xs font-black text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded border border-brand-500/25">
+                      {completedChapters.filter(ch => generatedPlan.chapters.includes(ch)).length} / {generatedPlan.chapters.length} Topics
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mb-4 shadow-inner">
+                    <div 
+                      className="h-full bg-gradient-to-r from-brand-500 to-indigo-500 transition-all duration-500" 
+                      style={{ 
+                        width: `${(completedChapters.filter(ch => generatedPlan.chapters.includes(ch)).length / Math.max(1, generatedPlan.chapters.length)) * 100}%` 
+                      }} 
+                    />
+                  </div>
+
+                  <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                    {generatedPlan.chapters.map((ch, idx) => {
+                      const isCompleted = completedChapters.includes(ch);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            if (isCompleted) {
+                              setCompletedChapters(completedChapters.filter(item => item !== ch));
+                            } else {
+                              setCompletedChapters([...completedChapters, ch]);
+                            }
+                          }}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all group cursor-pointer ${
+                            isCompleted
+                              ? 'bg-emerald-500/5 dark:bg-emerald-500/[0.02] border-emerald-500/30 text-emerald-800 dark:text-emerald-300 shadow-sm'
+                              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition ${
+                              isCompleted 
+                                ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                : 'border-slate-300 dark:border-white/20 group-hover:border-slate-400 dark:group-hover:border-white/40'
+                            }`}>
+                              {isCompleted && <CheckCircle2 size={12} strokeWidth={3} />}
+                            </div>
+                            <span className={`text-xs font-semibold ${isCompleted ? 'line-through opacity-75' : ''}`}>
+                              {ch}
+                            </span>
+                          </div>
+                          
+                          {/* Label Indicator */}
+                          <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                            isCompleted 
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                              : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                          }`}>
+                            {isCompleted ? 'Mastered' : 'Scheduled'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Dynamic Heuristics & Adaptive Adjustments */}
+              <div className="lg:col-span-5 space-y-5 flex flex-col justify-between">
+                {/* Highlight boxes */}
+                <div className="space-y-4">
+                  {/* Completion Confidence Gauge */}
+                  <div className="bg-slate-50 dark:bg-white/[0.01] border border-slate-200 dark:border-white/5 rounded-2xl p-4 flex items-center gap-4">
+                    <div className="relative flex items-center justify-center shrink-0">
+                      <svg className="w-16 h-16 transform -rotate-90">
+                        <circle cx="32" cy="32" r="28" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+                        <circle 
+                          cx="32" 
+                          cy="32" 
+                          r="28" 
+                          fill="transparent" 
+                          stroke="#6366f1" 
+                          strokeWidth="4" 
+                          strokeDasharray={175.9}
+                          strokeDashoffset={175.9 - (175.9 * Math.min(98, generatedPlan.confidenceLevel * 20 + 25)) / 100}
+                          className="transition-all duration-700 ease-out"
+                        />
+                      </svg>
+                      <span className="absolute text-xs font-black text-indigo-600 dark:text-indigo-400">
+                        {Math.min(98, generatedPlan.confidenceLevel * 20 + 25)}%
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Completion Confidence Gauge
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-1 font-semibold leading-relaxed">
+                        Completing this schedule will boost your predicted exam preparedness index to **{Math.min(98, generatedPlan.confidenceLevel * 20 + 25)}%**.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Adaptive Adjustments Callout */}
+                  <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-5 space-y-3.5">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                      <Brain size={14} className="text-indigo-500" />
+                      Dynamic Revision Rules Configured
+                    </h4>
+                    
+                    <div className="space-y-3 max-h-[140px] overflow-y-auto pr-1 scrollbar-thin">
+                      {generatedPlan.adjustments.length === 0 ? (
+                        <p className="text-xs text-slate-500 dark:text-slate-500 font-semibold">
+                          Uniform workload parameters applied successfully with no critical adjustments.
+                        </p>
+                      ) : (
+                        generatedPlan.adjustments.map((adj, idx) => (
+                          <div key={idx} className="flex gap-2.5 items-start text-xs">
+                            <span className="mt-0.5 text-indigo-500 font-bold">•</span>
+                            <div>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200 block">
+                                {adj.label}
+                              </span>
+                              <span className="text-slate-500 dark:text-slate-500 font-semibold leading-relaxed">
+                                {adj.desc}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Google Calendar Sync Confirmation */}
+                <div className={`p-4 rounded-2xl border flex items-center gap-3.5 ${
+                  googleConnected 
+                    ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-800 dark:text-emerald-300' 
+                    : 'bg-amber-500/5 border-amber-500/20 text-amber-800 dark:text-amber-300'
+                }`}>
+                  <div className="p-2 bg-white dark:bg-white/5 rounded-xl border border-border shadow-sm flex items-center justify-center shrink-0">
+                    <Shield className={googleConnected ? 'text-emerald-500 animate-pulse' : 'text-amber-500'} size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-black uppercase tracking-wider">
+                      Google Calendar Auto-Sync
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate font-semibold leading-relaxed">
+                      {googleConnected 
+                        ? `All generated study blocks are mapped to your calendar: ${googleEmail || 'student.studiq@gmail.com'}`
+                        : 'Offline calendar sandbox is currently active. Enable Google Integration above.'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[8px] uppercase tracking-wider block font-bold text-slate-400 dark:text-slate-500">Latency</span>
+                    <span className="text-[10px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">14ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="roadmap-empty"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 dark:bg-white/[0.01] border border-dashed border-slate-200 dark:border-white/10 rounded-2xl min-h-[160px]"
+          >
+            <Sparkles className="w-8 h-8 text-slate-400 dark:text-slate-600 animate-pulse mb-3" />
+            <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-300">No Active Revision Roadmap</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-500 max-w-sm mt-1 leading-relaxed font-medium">
+              Your generated revision roadmap will appear here. Configure subjects, syllabus chapters, and volume targets above to generate a custom timeline.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 5. DYNAMIC 14-DAY TIMELINE CONTAINER */}
-      <div className={CARD_SURFACE}>
+      <div className={CARD_SURFACE} id="chronological-timeline">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-white/[0.08] pb-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">

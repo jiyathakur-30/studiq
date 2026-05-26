@@ -55,7 +55,7 @@ export const Register: React.FC = () => {
       <div className="floating-circle w-96 h-96 -bottom-24 -right-24 bg-indigo-500/10" />
 
       {/* Main Glass Card */}
-      <Card hoverEffect={false} className="w-full max-w-md relative z-10 !p-8 bg-card backdrop-blur-2xl border border-border shadow-2xl">
+      <Card hoverEffect={false} className="w-full max-w-md relative z-10 !p-8 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-2xl rounded-3xl">
         
         {/* Brand Banner */}
         <div className="flex flex-col items-center mb-8 text-center select-none">
@@ -117,7 +117,7 @@ export const Register: React.FC = () => {
           <Button
             type="submit"
             variant="primary"
-            className="w-full font-bold h-11 text-sm mt-3"
+            className="w-full font-bold h-12 text-sm mt-3 shadow-lg hover:shadow-brand-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
             isLoading={isLoading}
           >
             Create Operating Account

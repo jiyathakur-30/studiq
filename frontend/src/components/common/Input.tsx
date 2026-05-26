@@ -28,42 +28,42 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   // Determine standard validation state colors
-  let statusBorderClass = 'border-black/[0.06] dark:border-white/[0.08]';
-  let statusBgClass = 'bg-card/70';
-  let focusClass = 'focus:border-brand-500/30 focus:ring-brand-500/10';
+  let statusBorderClass = 'border-slate-300 dark:border-white/10';
+  let statusBgClass = 'bg-white dark:bg-slate-900';
+  let focusClass = 'focus:border-brand-500/50 focus:ring-4 focus:ring-brand-500/10 focus:outline-none';
 
   if (error) {
-    statusBorderClass = 'border-red-500/20';
-    statusBgClass = 'bg-red-500/[0.03]';
-    focusClass = 'focus:border-red-500/30 focus:ring-red-500/10';
+    statusBorderClass = 'border-red-500/40';
+    statusBgClass = 'bg-red-500/[0.03] dark:bg-red-950/10';
+    focusClass = 'focus:border-red-500/50 focus:ring-4 focus:ring-red-500/10 focus:outline-none';
   } else if (warning) {
-    statusBorderClass = 'border-amber-500/20';
-    statusBgClass = 'bg-amber-500/[0.03]';
-    focusClass = 'focus:border-amber-500/30 focus:ring-amber-500/10';
+    statusBorderClass = 'border-amber-500/40';
+    statusBgClass = 'bg-amber-500/[0.03] dark:bg-amber-950/10';
+    focusClass = 'focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/10 focus:outline-none';
   } else if (success) {
-    statusBorderClass = 'border-emerald-500/20';
-    statusBgClass = 'bg-emerald-500/[0.03]';
-    focusClass = 'focus:border-emerald-500/30 focus:ring-emerald-500/10';
+    statusBorderClass = 'border-emerald-500/40';
+    statusBgClass = 'bg-emerald-500/[0.03] dark:bg-emerald-950/10';
+    focusClass = 'focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 focus:outline-none';
   }
 
   const baseInputClass = `
-    w-full px-4 text-sm rounded-xl text-foreground
+    w-full px-4 text-sm rounded-xl text-slate-800 dark:text-slate-100
     border ${statusBorderClass} ${statusBgClass}
-    hover:border-black/[0.09] dark:hover:border-white/[0.12]
+    hover:border-black/[0.15] dark:hover:border-white/[0.15]
     shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)]
     transition-all duration-200 ease-out
-    placeholder:text-muted-foreground/60
-    focus:outline-none focus:ring-4 ${focusClass}
+    placeholder:text-slate-400 dark:placeholder:text-slate-500
+    focus:outline-none ${focusClass}
     disabled:opacity-50 disabled:cursor-not-allowed
   `;
 
-  // Standard height for standard inputs to ensure exact h-11 symmetry
-  const inputHeightClass = multiline ? 'py-3' : 'h-11';
+  // Standard height for standard inputs to ensure exact h-12 comfort
+  const inputHeightClass = multiline ? 'py-3' : 'h-12';
 
   return (
     <div className={`flex flex-col w-full text-left ${className}`}>
       {label && (
-        <label htmlFor={id} className="text-sm font-medium text-foreground mb-2 block">
+        <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
           {label}
         </label>
       )}

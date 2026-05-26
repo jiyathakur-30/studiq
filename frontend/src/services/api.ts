@@ -840,7 +840,7 @@ export const apiService = {
             preferMorningSlots = true;
             adjustments.push({
               type: 'attendance',
-              label: 'Attendance Defense Boost',
+              label: 'Attendance Priority Adjustment',
               desc: `Subject attendance is critically low at ${Math.round(attendancePct)}% (< 75%). Expanded prep hours by 25% and scheduled early morning slots for optimal cognitive retention.`
             });
           }
@@ -853,7 +853,7 @@ export const apiService = {
         blockDensity += 0.2;
         adjustments.push({
           type: 'confidence',
-          label: 'Confidence Compensation',
+          label: 'Adaptive Workload Balance',
           desc: `Subject confidence rated ${planParams.confidenceLevel}/5. Increased study roadmap density by 20% for deeper, spaced revision.`
         });
       }
@@ -865,7 +865,7 @@ export const apiService = {
         blockDensity += 0.1;
         adjustments.push({
           type: 'confidence',
-          label: 'Subject Mastery Acceleration',
+          label: 'Adaptive Workload Balance',
           desc: `Target course "${subject.name}" identified in heavy quantitative/technical cluster. Increased study coverage density by 10%.`
         });
       }
@@ -881,7 +881,7 @@ export const apiService = {
           blockDensity += 0.15;
           adjustments.push({
             type: 'trend',
-            label: 'Declining Trend Compensation',
+            label: 'Adaptive Workload Balance',
             desc: `Academic Gazette records indicate a GPA deceleration from ${prevSem.sgpa} to ${latestSem.sgpa}. Injected high-density revision checkpoints (+15% study hours) to reverse the performance drift.`
           });
         }
@@ -902,7 +902,7 @@ export const apiService = {
         adjustedHoursGoal = Math.max(4, Math.round(adjustedHoursGoal * 0.8));
         adjustments.push({
           type: 'productivity',
-          label: 'Burnout Recovery Shield',
+          label: 'Focus Recovery Window',
           desc: `Recent productivity index is critically low (${productivityScore}%). Activated fatigue safety guard: capped total workload (-20%) and set study blocks to 30m maximum to avoid cognitive exhaustion.`
         });
       }
@@ -914,7 +914,7 @@ export const apiService = {
         useProgressiveRampUp = true;
         adjustments.push({
           type: 'streak',
-          label: 'Progressive Habit Ramp-up',
+          label: 'Recovery Buffer',
           desc: `Active study streak is erratic (${studyStreak} days). Applied cognitive staging: first 3 days are scheduled as short 25m habit-builder blocks, scaling up to full focus blocks as momentum builds.`
         });
       }
@@ -927,7 +927,7 @@ export const apiService = {
         focusSprintDuration = 25;
         adjustments.push({
           type: 'pomodoro',
-          label: 'Micro-Focus Adaptation',
+          label: 'Recovery Buffer',
           desc: 'Inconsistent deep-work focus logged. Switched blocks to structured 25m Pomodoro sprints with built-in breaks to improve execution rates.'
         });
       }
@@ -946,7 +946,7 @@ export const apiService = {
         nearAssignmentObj = nearAssignments[0];
         adjustments.push({
           type: 'assignment',
-          label: 'Proactive Deadline Protection',
+          label: 'Adaptive Workload Balance',
           desc: `Detected upcoming assignment "${nearAssignmentObj.title}" due soon. Automatically pre-allocated dedicated 1-hour prep blocks in advance of deadlines.`
         });
       }
@@ -957,7 +957,7 @@ export const apiService = {
         blockDensity += 0.15;
         adjustments.push({
           type: 'backlog',
-          label: 'Backlog Clearing Blocks',
+          label: 'Recovery Buffer',
           desc: `${overdueAssignments.length} overdue task(s) detected. Injected dedicated backlog resolution sprints and compressed scheduler gaps.`
         });
       }
