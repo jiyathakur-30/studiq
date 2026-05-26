@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings as SettingsIcon,
   User,
@@ -14,7 +15,10 @@ import {
   HelpCircle,
   HelpCircle as LockIcon,
   Flame,
-  CalendarCheck
+  CalendarCheck,
+  AlertTriangle,
+  Trash2,
+  LogOut
 } from 'lucide-react';
 import { useAppStore } from '../context/store';
 import { Card } from '../components/common/Card';
@@ -31,7 +35,9 @@ const PROFILE_AVATARS = [
 ];
 
 export const Settings: React.FC = () => {
-  const { user, updateSettings, theme, setTheme } = useAppStore();
+  const { user, updateSettings, theme, setTheme, logout, deleteAccount } = useAppStore();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [username, setUsername] = useState(user?.username || 'SarahConnor');
   const [email, setEmail] = useState(user?.email || 'demo@studiq.com');
@@ -39,6 +45,63 @@ export const Settings: React.FC = () => {
   const [dailyGoal, setDailyGoal] = useState(user?.settings.dailyStudyGoalMinutes || 60);
   const [selectedAvatar, setSelectedAvatar] = useState(user?.profilePicture || PROFILE_AVATARS[0]);
   const [isSaved, setIsSaved] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = () => {
+    setIsLoggingOut(true);
+    logout();
+    navigate('/login', { replace: true });
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirmText !== 'DELETE') return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const success = await deleteAccount();
+      if (success) {
+        navigate('/login', { replace: true });
+      } else {
+        setDeleteError('Deletion rejected by server. Please try again.');
+        setIsDeleting(false);
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'An error occurred during account deletion.');
+      setIsDeleting(false);
+    }
+  };
+
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showDeleteModal && !isDeleting) {
+        setShowDeleteModal(false);
+      }
+    };
+    if (showDeleteModal) {
+      window.addEventListener('keydown', handleEscape);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showDeleteModal, isDeleting]);
+
+  // Smooth scroll to anchor cards based on URL hash changes
+  React.useEffect(() => {
+    const hash = location.hash;
+    if (hash) {
+      const element = document.querySelector(hash);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      }
+    }
+  }, [location.hash]);
 
   // Form submit handler
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -101,7 +164,7 @@ export const Settings: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-left">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-7xl mx-auto text-left px-1 sm:px-0">
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-6">
@@ -121,7 +184,7 @@ export const Settings: React.FC = () => {
         <div className="lg:col-span-2 space-y-8">
           
           {/* 1. Account Settings Card */}
-          <Card className="bg-card space-y-6">
+          <Card className="bg-card space-y-6" id="profile-card">
             <h3 className="font-sans font-extrabold text-foreground text-base flex items-center gap-2 border-b border-border pb-3">
               <User size={18} className="text-brand-400" /> Account Profile
             </h3>
@@ -240,7 +303,7 @@ export const Settings: React.FC = () => {
         <div className="space-y-8">
           
           {/* Theme Palette Switcher */}
-          <Card className="bg-card space-y-4">
+          <Card className="bg-card space-y-4" id="theme-card">
             <h3 className="font-sans font-extrabold text-foreground text-sm flex items-center gap-2 border-b border-border pb-3">
               <Palette size={16} className="text-brand-400" /> UI Theme Selection
             </h3>
@@ -274,7 +337,7 @@ export const Settings: React.FC = () => {
             </div>
           </Card>
 
-          {/* Gamified Achievements Ledger */}
+          {/* Gamified Achievements Overview */}
           <div className="space-y-4 text-left">
             <h3 className="text-sm font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Award size={16} className="text-brand-400 animate-pulse" /> Unlocked Achievements
@@ -313,9 +376,142 @@ export const Settings: React.FC = () => {
               })}
             </div>
           </div>
+
+          {/* Danger Zone / Account Management */}
+          <Card className="border border-red-500/30 dark:border-red-500/20 bg-red-500/[0.02] shadow-[0_4px_20px_rgba(239,68,68,0.02)] space-y-4 hover:border-red-500/50 hover:shadow-[0_0_25px_rgba(239,68,68,0.08)] transition-all duration-300 text-left">
+            <h3 className="font-sans font-extrabold text-red-500 text-sm flex items-center gap-2 border-b border-red-500/10 pb-3">
+              <AlertTriangle size={16} className="text-red-500 animate-pulse" /> Danger Zone
+            </h3>
+            
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Actions in this block are highly sensitive. Logging out terminates the active session, while deleting the account permanently purges all databases and cache records.
+            </p>
+
+            <div className="flex flex-col gap-2.5 pt-2">
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold border border-border bg-card text-foreground hover:bg-muted active:scale-95 duration-200 transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/50 disabled:opacity-50"
+              >
+                <LogOut size={14} />
+                <span>{isLoggingOut ? 'Logging out...' : 'Logout from Account'}</span>
+              </button>
+
+              {/* Delete Account Button */}
+              <button
+                onClick={() => {
+                  setConfirmText('');
+                  setDeleteError('');
+                  setShowDeleteModal(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 duration-200 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
+              >
+                <Trash2 size={14} />
+                <span>Permanently Delete Account</span>
+              </button>
+            </div>
+          </Card>
         </div>
 
       </div>
+
+      {/* Custom Destructive Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setShowDeleteModal(false)}
+              className="fixed inset-0 bg-black/40 dark:bg-black/80 backdrop-blur-sm"
+            />
+
+            {/* Modal Container */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-full max-w-md bg-card border border-red-500/20 rounded-2xl shadow-2xl p-6 overflow-hidden z-10 text-left pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] sm:p-6"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 border-b border-border pb-3 mb-4">
+                <div className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 flex-shrink-0 animate-bounce">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="font-sans font-black text-sm text-foreground">Confirm Account Deletion</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">This action is permanent and cannot be undone.</p>
+                </div>
+              </div>
+
+              {/* Content Details */}
+              <div className="space-y-3 mb-6">
+                <p className="text-xs text-foreground font-semibold leading-relaxed">
+                  You are about to delete your STUDIQ account. This will completely and permanently erase:
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-[10px] text-muted-foreground font-medium leading-relaxed">
+                  <li>Your student credentials and security account profile.</li>
+                  <li>All course modules, schedules, history, and grades.</li>
+                  <li>All attendance registers and calculated survival ratios.</li>
+                  <li>All Kanban task items, notes, and study logs.</li>
+                  <li>All connected calendar schedules and synced Google data.</li>
+                </ul>
+              </div>
+
+              {/* Input verification */}
+              <div className="space-y-2.5 mb-6">
+                <label htmlFor="confirm-delete-input" className="block text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                  To confirm, please type <span className="text-red-500 font-extrabold font-sans">DELETE</span> below:
+                </label>
+                <Input
+                  id="confirm-delete-input"
+                  type="text"
+                  placeholder="Type DELETE to confirm"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  error={deleteError}
+                  className="tracking-widest uppercase font-bold text-center !h-10 text-xs"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end border-t border-border pt-4">
+                <Button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  variant="secondary"
+                  size="sm"
+                  className="font-bold h-9 text-xs"
+                >
+                  Cancel
+                </Button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={confirmText !== 'DELETE' || isDeleting}
+                  className="flex items-center justify-center gap-1.5 px-4 h-9 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 active:scale-95 duration-200 transition-all disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="h-3 w-3 border-2 border-white border-t-transparent animate-spin rounded-full" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} />
+                      <span>Delete Account</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

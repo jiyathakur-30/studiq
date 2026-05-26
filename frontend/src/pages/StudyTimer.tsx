@@ -22,7 +22,9 @@ import { useAppStore } from '../context/store';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
+import { Select } from '../components/common/Select';
 import { Badge } from '../components/common/Badge';
+import { useFocusAnalytics } from '../context/FocusAnalyticsContext';
 
 // Free stream ambient loops for high-end SaaS feel
 const AMBIENT_TRACKS = [
@@ -32,7 +34,9 @@ const AMBIENT_TRACKS = [
 ];
 
 export const StudyTimer: React.FC = () => {
+  const focusAnalytics = useFocusAnalytics(); // Global adaptive analytics hook
   const {
+
     studySessions,
     subjects,
     addStudySession,
@@ -56,6 +60,10 @@ export const StudyTimer: React.FC = () => {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionNotes, setSessionNotes] = useState('');
   const [focusStyle, setFocusStyle] = useState<'pomodoro' | 'deep_work'>('pomodoro');
+
+  // Completed session overlay state
+  const [completedSessionData, setCompletedSessionData] = useState<{ durationMinutes: number; points: number } | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Ambient Audio State
   const [currentTrack, setCurrentTrack] = useState<string | null>(null);
@@ -129,7 +137,8 @@ export const StudyTimer: React.FC = () => {
 
   const handleToggleActive = () => {
     if (!isActive && timeRemaining <= 0) {
-      alert("Please set a duration greater than 0 seconds.");
+      setValidationError("Please set a duration greater than 0 seconds.");
+      setTimeout(() => setValidationError(null), 3000);
       return;
     }
     setIsActive(!isActive);
@@ -225,9 +234,14 @@ export const StudyTimer: React.FC = () => {
       console.log(e);
     }
 
+    const elapsedMinutes = Math.max(1, Math.round((initialDurationSeconds - timeRemaining) / 60));
+
     if (isCustomTimer) {
       // Reward message / completion state
-      alert(`🎉 Custom countdown timer completed!`);
+      setCompletedSessionData({
+        durationMinutes: elapsedMinutes,
+        points: 0
+      });
       // Reset to custom duration
       setTimeRemaining(customDurationSeconds);
     } else {
@@ -235,11 +249,27 @@ export const StudyTimer: React.FC = () => {
       await handleLogSessionSubmit();
       
       // Reward message
-      alert(`🎉 Deep work session completed successfully! You unlocked +50 Study Points!`);
+      setCompletedSessionData({
+        durationMinutes: elapsedMinutes,
+        points: 50
+      });
       
       // Reset to default
       setPreset('pomodoro', 25);
     }
+  };
+
+  const handleStartAnotherSession = () => {
+    const isCustom = timerMode === 'normal_timer';
+    setCompletedSessionData(null);
+    if (isCustom) {
+      setTimeRemaining(customDurationSeconds);
+    } else {
+      if (timerMode === 'short_break') setPreset('short_break', 5);
+      else if (timerMode === 'long_break') setPreset('long_break', 15);
+      else setPreset('pomodoro', 25);
+    }
+    setIsActive(true);
   };
 
   // Skip timer
@@ -309,7 +339,7 @@ export const StudyTimer: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-left">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-7xl mx-auto text-left px-1 sm:px-0">
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -346,6 +376,69 @@ export const StudyTimer: React.FC = () => {
         {/* Left Col: Immersion Pomodoro Ring Container */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="flex flex-col items-center justify-center py-10 relative overflow-hidden bg-card">
+            {/* Completed Session Overlay Modal */}
+            <AnimatePresence>
+              {completedSessionData && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-card/98 backdrop-blur-md z-30 flex flex-col items-center justify-center p-8 text-center"
+                >
+                  <motion.div
+                    initial={{ scale: 0.96, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.96, opacity: 0 }}
+                    transition={{ delay: 0.05, duration: 0.15 }}
+                    className="max-w-sm w-full space-y-6"
+                  >
+                    <div className="mx-auto h-14 w-14 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 flex items-center justify-center shadow-sm">
+                      <CheckCircle size={28} />
+                    </div>
+
+                    <div className="space-y-2 text-center">
+                      <h3 className="font-sans font-black text-xl text-slate-900 dark:text-white tracking-tight">
+                        Excellent focus session completed.
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-xs mx-auto font-semibold">
+                        Your study sprint logs have been seamlessly calibrated. Keep the active momentum moving.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/5 max-w-xs mx-auto text-left space-y-2 text-slate-700 dark:text-slate-350">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span>Time Logged:</span>
+                        <strong className="font-extrabold">{completedSessionData.durationMinutes} Minutes</strong>
+                      </div>
+                      {completedSessionData.points > 0 && (
+                        <div className="flex justify-between text-xs font-semibold pt-1.5 border-t border-border/50">
+                          <span>Focus Points earned:</span>
+                          <strong className="font-extrabold text-brand-500">+{completedSessionData.points} pts</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2.5 w-full max-w-xs mx-auto pt-2">
+                      <Button
+                        onClick={handleStartAnotherSession}
+                        variant="primary"
+                        className="w-full font-bold h-11 text-xs shadow-md shadow-brand-500/20"
+                      >
+                        Start Another Session
+                      </Button>
+                      <Button
+                        onClick={() => setCompletedSessionData(null)}
+                        variant="ghost"
+                        className="w-full text-xs font-semibold"
+                      >
+                        Return to Lounge
+                      </Button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Action Mode Pills */}
             <div className="flex flex-wrap items-center justify-center gap-1.5 bg-muted border border-border p-1 rounded-xl mb-8 z-10">
               <button
@@ -417,6 +510,28 @@ export const StudyTimer: React.FC = () => {
                    timerMode === 'long_break' ? 'REST ACTIVE' : 'NORMAL TIMER'}
                 </span>
               </div>
+            </div>
+
+            {/* Dynamic Calm Telemetry HUD */}
+            <div className="text-center z-10 mb-6 px-4 flex flex-col items-center gap-2">
+              {validationError && (
+                <span className="text-[10px] font-bold tracking-wider uppercase text-rose-500 bg-rose-500/10 border border-rose-500/20 py-1 px-3.5 rounded-full inline-flex items-center gap-1.5 animate-pulse">
+                  ⚠️ {validationError}
+                </span>
+              )}
+              <span className="text-[10px] font-bold tracking-wider uppercase text-slate-500 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 py-1 px-3.5 rounded-full inline-flex items-center gap-1.5 transition-all">
+                {isActive ? (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-pulse shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-350">Tracking focus session...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-350">Workspace ready. Focus tracking will begin immediately after activation.</span>
+                  </>
+                )}
+              </span>
             </div>
 
             {/* Controls panel */}
@@ -584,21 +699,18 @@ export const StudyTimer: React.FC = () => {
             
             <form onSubmit={handleLogSessionSubmit} className="space-y-4 text-left">
               {/* Subject Select link */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Associate Subject</label>
-                <select
-                  value={selectedSubjectId}
-                  onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-                >
-                  <option value="">No Course Link</option>
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Associate Subject"
+                value={selectedSubjectId}
+                onChange={(val) => setSelectedSubjectId(val)}
+                options={[
+                  { value: '', label: 'No Course Link' },
+                  ...subjects.map((sub) => ({
+                    value: sub.id,
+                    label: `${sub.name} (${sub.code || ''})`
+                  }))
+                ]}
+              />
 
               {/* Mode style check */}
               <div className="flex flex-col gap-1.5">
@@ -622,15 +734,14 @@ export const StudyTimer: React.FC = () => {
               </div>
 
               {/* Notes */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Session Quick notes</label>
-                <textarea
-                  value={sessionNotes}
-                  onChange={(e) => setSessionNotes(e.target.value)}
-                  placeholder="e.g. read chapter 2 direct mapped caches formulas..."
-                  className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder-muted-foreground/50 focus:outline-none resize-none h-16"
-                />
-              </div>
+              <Input
+                label="Session Quick notes"
+                value={sessionNotes}
+                onChange={(e) => setSessionNotes(e.target.value)}
+                placeholder="e.g. read chapter 2 direct mapped caches formulas..."
+                multiline
+                rows={2}
+              />
 
               <Button type="submit" variant="secondary" size="sm" className="w-full font-bold">
                 Manual Log Focus Interval

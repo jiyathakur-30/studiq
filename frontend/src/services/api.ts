@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { storage, safeParse, DEMO_USER_ID, DEMO_EMAIL, OFFLINE_USERS_KEY } from '../utils/storage';
 import {
   initialUserProfile,
   initialSubjects,
@@ -76,33 +77,58 @@ API.interceptors.request.use((config) => {
 });
 
 // Offline Database Hooks (Initializing values in localStorage if empty)
-const initializeOfflineDb = () => {
-  if (!localStorage.getItem('studiq_user')) {
-    localStorage.setItem('studiq_user', JSON.stringify(initialUserProfile));
+export const initializeOfflineDb = () => {
+  const userStr = localStorage.getItem('studiq_user');
+  let activeUserId = '';
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      activeUserId = user?.id || user?._id || '';
+    } catch (e) {}
   }
-  if (!localStorage.getItem('studiq_subjects')) {
-    localStorage.setItem('studiq_subjects', JSON.stringify(initialSubjects));
+
+  // If the active user is the demo user, ensure default demo data is populated
+  if (activeUserId === DEMO_USER_ID) {
+    if (!storage.getItem('studiq_subjects')) {
+      storage.setItem('studiq_subjects', JSON.stringify(initialSubjects));
+    }
+    if (!storage.getItem('studiq_attendance')) {
+      storage.setItem('studiq_attendance', JSON.stringify(initialAttendance));
+    }
+    if (!storage.getItem('studiq_assignments')) {
+      storage.setItem('studiq_assignments', JSON.stringify(initialAssignments));
+    }
+    if (!storage.getItem('studiq_notes')) {
+      storage.setItem('studiq_notes', JSON.stringify(initialNotes));
+    }
+    if (!storage.getItem('studiq_study')) {
+      storage.setItem('studiq_study', JSON.stringify(initialStudySessions));
+    }
+  } else if (activeUserId) {
+    // For non-demo real users, ensure empty arrays exist if they don't already
+    const keys = [
+      'studiq_subjects',
+      'studiq_attendance',
+      'studiq_assignments',
+      'studiq_notes',
+      'studiq_study'
+    ];
+    keys.forEach((k) => {
+      if (!storage.getItem(k)) {
+        storage.setItem(k, JSON.stringify([]));
+      }
+    });
   }
-  if (!localStorage.getItem('studiq_attendance')) {
-    localStorage.setItem('studiq_attendance', JSON.stringify(initialAttendance));
+
+  // Global scheduled sessions, exam plans & oauth
+  if (!storage.getItem('studiq_scheduled_sessions')) {
+    storage.setItem('studiq_scheduled_sessions', JSON.stringify([]));
   }
-  if (!localStorage.getItem('studiq_assignments')) {
-    localStorage.setItem('studiq_assignments', JSON.stringify(initialAssignments));
+  if (!storage.getItem('studiq_exam_plans')) {
+    storage.setItem('studiq_exam_plans', JSON.stringify([]));
   }
-  if (!localStorage.getItem('studiq_notes')) {
-    localStorage.setItem('studiq_notes', JSON.stringify(initialNotes));
-  }
-  if (!localStorage.getItem('studiq_study')) {
-    localStorage.setItem('studiq_study', JSON.stringify(initialStudySessions));
-  }
-  if (!localStorage.getItem('studiq_scheduled_sessions')) {
-    localStorage.setItem('studiq_scheduled_sessions', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('studiq_exam_plans')) {
-    localStorage.setItem('studiq_exam_plans', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('studiq_google_oauth')) {
-    localStorage.setItem('studiq_google_oauth', JSON.stringify({ isConnected: false, email: null }));
+  if (!storage.getItem('studiq_google_oauth')) {
+    storage.setItem('studiq_google_oauth', JSON.stringify({ isConnected: false, email: null }));
   }
 };
 
@@ -110,59 +136,178 @@ initializeOfflineDb();
 
 // Offline Engine CRUD controllers
 const getLocalData = <T>(key: string): T => {
-  return JSON.parse(localStorage.getItem(key) || '[]') as T;
+  const val = storage.getItem(key);
+  if (!val) {
+    const userStr = localStorage.getItem('studiq_user');
+    let activeUserId = '';
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        activeUserId = user?.id || user?._id || '';
+      } catch (e) {}
+    }
+
+    if (activeUserId === DEMO_USER_ID) {
+      if (key === 'studiq_user') return initialUserProfile as unknown as T;
+      if (key === 'studiq_subjects') return initialSubjects as unknown as T;
+      if (key === 'studiq_attendance') return initialAttendance as unknown as T;
+      if (key === 'studiq_assignments') return initialAssignments as unknown as T;
+      if (key === 'studiq_notes') return initialNotes as unknown as T;
+      if (key === 'studiq_study') return initialStudySessions as unknown as T;
+    } else {
+      if (key === 'studiq_user') return null as unknown as T;
+      return [] as unknown as T;
+    }
+    return [] as unknown as T;
+  }
+  return safeParse<T>(val, [] as unknown as T);
 };
 
 const setLocalData = <T>(key: string, data: T) => {
-  localStorage.setItem(key, JSON.stringify(data));
+  storage.setItem(key, JSON.stringify(data));
 };
 
 export const apiService = {
   // --- AUTH SERVICES ---
   async login(email: string, password: string): Promise<{ success: boolean; user: UserProfile; accessToken: string; refreshToken: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      const response = await API.post('/auth/login', { email, password });
+      const response = await API.post('/auth/login', { email: normalizedEmail, password });
       localStorage.setItem('studiq_access_token', response.data.accessToken);
       localStorage.setItem('studiq_user', JSON.stringify(response.data.user));
+      initializeOfflineDb();
       return response.data;
     } catch (error) {
       console.warn('[Hybrid Sync] Login server unreachable, executing fallback validations.');
-      const localUser = getLocalData<UserProfile>('studiq_user');
-      if (email === localUser.email && password === 'password123') {
-        const mockToken = 'mock-jwt-token-response';
-        localStorage.setItem('studiq_access_token', mockToken);
-        return {
-          success: true,
-          user: localUser,
-          accessToken: mockToken,
-          refreshToken: 'mock-refresh-token'
-        };
+      console.log('[Auth Debug] Offline login attempt for email:', normalizedEmail);
+
+      let registeredUsers: any[] = [];
+      try {
+        const storedRegistry = localStorage.getItem(OFFLINE_USERS_KEY);
+        if (storedRegistry) {
+          registeredUsers = JSON.parse(storedRegistry);
+        }
+      } catch (e) {}
+
+      // Add default demo user with its password conforming to the standard schema
+      const demoUser = {
+        id: DEMO_USER_ID,
+        username: 'SarahConnor',
+        email: DEMO_EMAIL,
+        password: 'password123',
+        createdAt: new Date().toISOString()
+      };
+      
+      const allUsers = [demoUser, ...registeredUsers];
+      console.log('[LOGIN USERS]', allUsers);
+      console.log('[LOGIN INPUT]', normalizedEmail, password);
+
+      const matchedUserRecord = allUsers.find(u => u.email.trim().toLowerCase() === normalizedEmail);
+
+      if (matchedUserRecord) {
+        const expectedPassword = matchedUserRecord.password;
+        console.log('[Auth Debug] User found in registry. Matching passwords.');
+        
+        if (expectedPassword && password === expectedPassword) {
+          const mockToken = 'mock-jwt-token-response';
+          localStorage.setItem('studiq_access_token', mockToken);
+          
+          // Assemble the UserProfile for app store/UI consumption
+          const matchedProfile: UserProfile = {
+            id: matchedUserRecord.id,
+            username: matchedUserRecord.username,
+            email: matchedUserRecord.email,
+            profilePicture: matchedUserRecord.id === DEMO_USER_ID 
+              ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
+              : 'avatar-default',
+            settings: { theme: 'dark', targetAttendance: 75, dailyStudyGoalMinutes: 60 },
+            stats: { studyStreak: matchedUserRecord.id === DEMO_USER_ID ? 5 : 0, lastActiveDate: new Date().toISOString(), points: matchedUserRecord.id === DEMO_USER_ID ? 420 : 0 }
+          };
+
+          localStorage.setItem('studiq_user', JSON.stringify(matchedProfile));
+          
+          console.log('[Auth Debug] Login success. User ID resolved:', matchedProfile.id);
+          initializeOfflineDb();
+          return {
+            success: true,
+            user: matchedProfile,
+            accessToken: mockToken,
+            refreshToken: 'mock-refresh-token'
+          };
+        }
       }
-      throw new Error('Invalid email or password. Hint: Try demo@studiq.com / password123');
+      console.log('[Auth Debug] Login credentials mismatch.');
+      throw new Error('Invalid email or password.');
     }
   },
 
-  async register(username: string, email: string): Promise<{ success: boolean; user: UserProfile; accessToken: string }> {
+  async register(username: string, email: string, password?: string): Promise<{ success: boolean; user: UserProfile; accessToken: string }> {
+    if (!password || password.trim().length === 0) {
+      throw new Error('Password is required.');
+    }
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      const response = await API.post('/auth/register', { username, email, password: 'password123' });
+      const response = await API.post('/auth/register', { username, email: normalizedEmail, password });
+      
       localStorage.setItem('studiq_access_token', response.data.accessToken);
       localStorage.setItem('studiq_user', JSON.stringify(response.data.user));
+      initializeOfflineDb();
       return response.data;
     } catch (error) {
       console.warn('[Hybrid Sync] Register server unreachable, fallback registering demo profile.');
-      const mockUser: UserProfile = {
+      
+      // Duplicate registration protection
+      let registeredUsers: any[] = [];
+      try {
+        const storedRegistry = localStorage.getItem(OFFLINE_USERS_KEY);
+        if (storedRegistry) {
+          registeredUsers = JSON.parse(storedRegistry);
+        }
+      } catch (e) {}
+
+      console.log('[Auth Debug] Offline registration check. Registered users:', registeredUsers.map(u => u.email));
+
+      if (registeredUsers.some(u => u.email.trim().toLowerCase() === normalizedEmail) || normalizedEmail === DEMO_EMAIL) {
+        throw new Error('Registration failed: Email address is already registered.');
+      }
+
+      // Standardized structure record — store exact password as entered
+      const newUser = {
         id: 'user-' + Date.now(),
-        username,
-        email,
+        username: username.trim(),
+        email: normalizedEmail,
+        password: password,   // always the user's actual input
+        createdAt: new Date().toISOString()
+      };
+
+      console.log('[REGISTER] New user created:', newUser.id, newUser.email);
+
+      // Persist registry — same key as login reads
+      registeredUsers.push(newUser);
+      localStorage.setItem(OFFLINE_USERS_KEY, JSON.stringify(registeredUsers));
+
+      // Verify persistence
+      const verifyRegistry = localStorage.getItem(OFFLINE_USERS_KEY);
+      console.log('[Auth Debug] Registry after registration:', verifyRegistry ? JSON.parse(verifyRegistry).length : 0, 'users');
+
+      // Assemble UserProfile for app store consumption
+      const userProfile: UserProfile = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
         profilePicture: 'avatar-default',
         settings: { theme: 'dark', targetAttendance: 75, dailyStudyGoalMinutes: 60 },
-        stats: { studyStreak: 1, lastActiveDate: new Date().toISOString(), points: 50 }
+        stats: { studyStreak: 0, lastActiveDate: newUser.createdAt, points: 0 }
       };
-      localStorage.setItem('studiq_user', JSON.stringify(mockUser));
+
+      localStorage.setItem('studiq_user', JSON.stringify(userProfile));
       localStorage.setItem('studiq_access_token', 'mock-jwt-token-response');
+      initializeOfflineDb();
+      
+      console.log('[Auth Debug] Offline registration success. Created user ID:', newUser.id);
       return {
         success: true,
-        user: mockUser,
+        user: userProfile,
         accessToken: 'mock-jwt-token-response'
       };
     }
@@ -188,6 +333,16 @@ export const apiService = {
       user.settings = { ...user.settings, ...settings };
       setLocalData('studiq_user', user);
       return user;
+    }
+  },
+
+  async deleteAccount(): Promise<boolean> {
+    try {
+      await API.delete('/auth/delete-account');
+      return true;
+    } catch (error) {
+      console.warn('Backend offline or failed to delete account database record, falling back to local data wipe.', error);
+      return true;
     }
   },
 

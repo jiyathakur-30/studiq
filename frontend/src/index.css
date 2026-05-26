@@ -10,11 +10,11 @@
     --bg-card: rgba(255, 255, 255, 0.85);
     --bg-sidebar: rgba(241, 245, 249, 0.95);
     --bg-muted: #f1f5f9;
-    --border-color: rgba(226, 232, 240, 0.95);
-    --text-main: #090d16;
-    --text-muted: #3b4856;
-    --shadow-color: rgba(15, 23, 42, 0.05);
-    --shadow-glow: rgba(99, 102, 241, 0.04);
+    --border-color: #cbd5e1;
+    --text-main: #000000;
+    --text-muted: #1e293b;
+    --shadow-color: rgba(15, 23, 42, 0.08);
+    --shadow-glow: rgba(99, 102, 241, 0.06);
     --bg-select: #ffffff;
     --bg-glow: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.01) 0px, transparent 50%);
     --accent: #4f46e5;
@@ -161,9 +161,15 @@
   border-color: rgba(99, 102, 241, 0.4);
 }
 
+.cyberpunk .premium-glass-card {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 0 15px var(--shadow-color) !important;
+}
+
 .cyberpunk .premium-glass-card:hover {
-  box-shadow: 0 0 25px rgba(244, 63, 94, 0.25);
-  border-color: rgba(244, 63, 94, 0.55);
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.25) !important;
+  border-color: rgba(244, 63, 94, 0.55) !important;
 }
 
 .glass-input {
@@ -211,4 +217,223 @@
 /* Auth background graphics */
 .floating-circle {
   @apply absolute rounded-full bg-brand-500/10 blur-[80px] pointer-events-none;
+}
+
+/* ==========================================
+   CYBERPUNK THEME SEMANTIC OVERRIDES
+   ========================================== */
+.cyberpunk .bg-white,
+.cyberpunk .bg-slate-50,
+.cyberpunk .bg-slate-100,
+.cyberpunk .bg-slate-200,
+.cyberpunk .bg-slate-800,
+.cyberpunk .bg-slate-900,
+.cyberpunk .bg-slate-950,
+.cyberpunk .bg-slate-50\/80,
+.cyberpunk .bg-slate-900\/30,
+.cyberpunk .bg-slate-50\/10,
+.cyberpunk .bg-slate-50\/50,
+.cyberpunk .bg-slate-50\/30,
+.cyberpunk .bg-slate-900\/40,
+.cyberpunk .bg-slate-900\/60,
+.cyberpunk .bg-slate-950\/40,
+.cyberpunk .bg-slate-100\/50,
+.cyberpunk .bg-slate-50\/5,
+.cyberpunk .bg-muted {
+  background-color: var(--bg-card) !important;
+}
+
+.cyberpunk .bg-muted\/20 {
+  background-color: rgba(13, 30, 36, 0.2) !important;
+}
+
+.cyberpunk .hover\:bg-muted\/80:hover {
+  background-color: rgba(13, 30, 36, 0.8) !important;
+}
+
+.cyberpunk .bg-slate-200,
+.cyberpunk .bg-slate-800 {
+  background-color: var(--bg-muted) !important; /* Slider tracks */
+}
+
+.cyberpunk .bg-white\/80 {
+  background-color: rgba(10, 10, 12, 0.8) !important;
+}
+
+.cyberpunk .bg-white\/60 {
+  background-color: rgba(10, 10, 12, 0.6) !important;
+}
+
+.cyberpunk .bg-white\/5 {
+  background-color: var(--bg-muted) !important;
+}
+
+.cyberpunk .bg-white\/\[0\.04\],
+.cyberpunk .bg-white\/\[0\.02\],
+.cyberpunk .bg-white\/\[0\.01\] {
+  background-color: rgba(13, 30, 36, 0.2) !important;
+}
+
+.cyberpunk .border-slate-200,
+.cyberpunk .border-slate-300 {
+  border-color: var(--border-color) !important;
+}
+
+.cyberpunk .text-slate-700,
+.cyberpunk .text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+.cyberpunk .text-slate-900 {
+  color: var(--text-main) !important;
+}
+
+/* Custom interactive element borders and active background tweaks */
+.cyberpunk select option,
+.cyberpunk input,
+.cyberpunk textarea,
+.cyberpunk select {
+  background-color: var(--bg-select) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-main) !important;
+}
+
+/* ==========================================
+   LIGHT MODE CONTRAST & READABILITY OVERRIDES
+   ========================================== */
+.light .text-slate-400,
+.light .text-slate-500 {
+  color: #1e293b !important; /* Dark Slate instead of faded light gray */
+}
+
+.light .text-slate-600 {
+  color: #0f172a !important; /* Very dark slate */
+}
+
+.light .text-slate-700,
+.light .text-slate-800,
+.light .text-slate-900 {
+  color: #000000 !important; /* Pure black for primary copy */
+}
+
+.light .border-slate-200,
+.light .border-slate-300 {
+  border-color: #94a3b8 !important; /* Darker border slate for crisp outlines */
+}
+
+.light .text-muted-foreground {
+  color: #1e293b !important;
+}
+
+.light .bg-slate-50,
+.light .bg-slate-100 {
+  background-color: #e2e8f0 !important; /* Slightly darker recessed backgrounds */
+}
+
+
+/* --- Design System Utilities --- */
+
+@layer components {
+  /* Typography */
+  .text-heading {
+    @apply text-xl font-black tracking-tight leading-none;
+  }
+  .text-card-title {
+    @apply text-base font-bold tracking-tight;
+  }
+  .text-body {
+    @apply text-sm leading-relaxed;
+    color: var(--text-muted);
+  }
+  .text-metric {
+    @apply text-3xl font-black tracking-tight;
+  }
+  .text-label-muted {
+    @apply font-mono uppercase;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  /* Spacing */
+  .p-card {
+    @apply p-5;
+  }
+  .gap-section {
+    @apply gap-5;
+  }
+  .space-y-section > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: 1.5rem;
+  }
+
+  /* Interaction */
+  .interact {
+    @apply transition-all duration-200 ease-out;
+  }
+  .interact:hover {
+    transform: translateY(-1px);
+  }
+  .interact:active {
+    transform: scale(0.985);
+  }
+  .tactile-press {
+    @apply transition-all duration-200 ease-out;
+  }
+  .tactile-press:hover {
+    transform: translateY(-1px);
+  }
+  .tactile-press:active {
+    transform: scale(0.985);
+  }
+  .interact-fast {
+    @apply transition-all duration-150 ease-out;
+  }
+  .interact-fast:hover {
+    transform: translateY(-1px);
+  }
+  .interact-fast:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Responsive scaling for design system utilities */
+@media (min-width: 640px) {
+  .text-heading { font-size: 1.5rem; }
+  .text-card-title { font-size: 1.125rem; }
+  .text-metric { font-size: 2.25rem; }
+  .p-card { padding: 1.5rem; }
+  .gap-section { gap: 1.5rem; }
+  .space-y-section > :not([hidden]) ~ :not([hidden]) { margin-top: 2rem; }
+}
+@media (min-width: 768px) {
+  .text-heading { font-size: 1.875rem; }
+}
+
+/* Dark mode overrides for design system */
+.dark .text-label-muted {
+  color: rgba(255, 255, 255, 0.35);
+}
+/* End Design System Utilities */
+
+/* Accessibility focus bounds & prefers-reduced-motion overrides */
+*:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+  .tactile-press:hover, .glass-card:hover, .premium-glass-card:hover, .interact:hover, .interact-fast:hover {
+    transform: none !important;
+  }
 }

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../context/store';
+import { useFocusAnalytics } from '../context/FocusAnalyticsContext';
+import { Input } from '../components/common/Input';
+import { Select } from '../components/common/Select';
 import {
   Calendar,
   RefreshCw,
@@ -42,10 +45,12 @@ const TXT_SECONDARY = "text-slate-700 dark:text-slate-300";
 const TXT_MUTED = "text-slate-500 dark:text-slate-400 font-medium";
 
 // Standardized Premium Glassmorphism Card Surface
-const CARD_SURFACE = "bg-white/80 dark:bg-[#0f172a]/40 border border-slate-200 dark:border-white/10 shadow-xl backdrop-blur-xl rounded-2xl p-5 overflow-hidden transition-all duration-300 hover:border-slate-300 dark:hover:border-white/20 relative z-10";
+const CARD_SURFACE = "bg-card border border-border shadow-xl backdrop-blur-xl rounded-2xl p-5 overflow-hidden transition-all duration-300 hover:border-slate-300 dark:hover:border-white/20 [.cyberpunk_&]:hover:border-cyan-500/30 relative z-10";
 
 export const Scheduler: React.FC = () => {
+  const focusAnalytics = useFocusAnalytics(); // Global adaptive analytics hook
   const {
+
     subjects,
     scheduledSessions,
     googleConnected,
@@ -59,7 +64,8 @@ export const Scheduler: React.FC = () => {
     rescheduleMissedSessions,
     updateSessionStatus,
     connectGoogleCalendar,
-    disconnectGoogleCalendar
+    disconnectGoogleCalendar,
+    setAiCoachOpen
   } = useAppStore();
 
   // Component State
@@ -75,9 +81,17 @@ export const Scheduler: React.FC = () => {
   const [adjustments, setAdjustments] = useState<any[]>([]);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [selectedDayOffset, setSelectedDayOffset] = useState<number>(0);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
 
   // Sync details state
   const [lastSyncResult, setLastSyncResult] = useState<any>(null);
+
+  const showNotification = (msg: string, type: 'success' | 'warning' = 'success') => {
+    setNotification({ message: msg, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
 
   // Load Initial Store Data
   useEffect(() => {
@@ -134,7 +148,7 @@ export const Scheduler: React.FC = () => {
   // Generate Plan Handler
   const handleGeneratePlan = async () => {
     if (!selectedSubjectId || !examDate || chapters.length === 0) {
-      alert('Please fill out the courses, exam date, and syllabus chapters list first.');
+      showNotification('Please fill out the courses, exam date, and syllabus chapters list first.', 'warning');
       return;
     }
     setIsGenerating(true);
@@ -149,9 +163,11 @@ export const Scheduler: React.FC = () => {
       if (result.success) {
         setAdjustments(result.adjustments || []);
         setLastSyncResult(result.syncStats);
+        showNotification('Syllabus-aware study plan calculated successfully!', 'success');
       }
     } catch (error) {
       console.error(error);
+      showNotification('Optimized plan generation failed. Retrying in fallback offline mode...', 'warning');
     } finally {
       setIsGenerating(false);
     }
@@ -163,11 +179,12 @@ export const Scheduler: React.FC = () => {
     try {
       const result = await rescheduleMissedSessions();
       if (result.success && result.rescheduledCount > 0) {
-        alert(result.message);
+        showNotification(result.message, 'success');
         setWarningMessage(null);
       }
     } catch (err) {
       console.error(err);
+      showNotification('Recovery calculation timed out. Retrying sync...', 'warning');
     } finally {
       setIsRescheduling(false);
     }
@@ -222,7 +239,32 @@ export const Scheduler: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto px-4 pb-24 pt-6 font-sans">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto px-1 sm:px-0 pb-24 pt-6 font-sans">
+      {/* Premium Notification Overlay */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-xl border flex items-center gap-2.5 max-w-sm text-xs font-bold transition-all bg-slate-900/90 dark:bg-black/90 text-white border-white/10"
+          >
+            {notification.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            )}
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-auto text-slate-400 hover:text-white transition-all cursor-pointer font-black text-sm"
+            >
+              &times;
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 1. HERO SECTION WITH CINEMATIC GLOW */}
       <div className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 bg-gradient-to-r from-slate-50 via-slate-100 to-slate-200 dark:from-slate-900/60 dark:via-slate-950/40 dark:to-slate-900/60 p-6 md:p-8 shadow-2xl backdrop-blur-xl">
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -233,11 +275,11 @@ export const Scheduler: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className="bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 text-[10px] font-extrabold tracking-widest px-3 py-1 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
                 <Brain size={12} className="animate-pulse" />
-                AI OS Intelligence Layer
+                Study Planner
               </span>
               <span className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-extrabold tracking-widest px-3 py-1 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
                 <Gauge size={12} />
-                Cognitive Load: Optimized
+                Target Focus: Calibrated
               </span>
             </div>
             
@@ -246,7 +288,7 @@ export const Scheduler: React.FC = () => {
             </h1>
             
             <p className="text-slate-600 dark:text-slate-300 text-sm mt-3 max-w-2xl leading-relaxed font-medium">
-              A premium productivity intelligence command center. The self-adjusting academic scheduling engine analyzes your live attendance records, weekly productivity trends, backlog tasks, and Pomodoro focus consistency to output optimal cognitive revision plans.
+              An intelligent study scheduler that adapts to your workload. The engine analyzes your attendance, weekly study logs, backlog tasks, and focus sessions to suggest optimal, balanced planner schedules.
             </p>
 
             {/* Dynamic Live Analytics Chips */}
@@ -278,7 +320,7 @@ export const Scheduler: React.FC = () => {
                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${googleConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
               </span>
               <span className="text-xs font-black uppercase tracking-wider">
-                {googleConnected ? 'Google Calendar Integrated' : 'Sandboxed Mock Sandbox'}
+                {googleConnected ? 'Google Calendar Integrated' : 'AI Planner Online'}
               </span>
             </div>
 
@@ -315,7 +357,7 @@ export const Scheduler: React.FC = () => {
               <div>
                 <h3 className="text-base font-extrabold text-red-800 dark:text-red-200">Missed Study Sessions Tracked</h3>
                 <p className="text-xs text-slate-700 dark:text-slate-300 mt-1 max-w-2xl leading-relaxed font-medium">
-                  The AI OS detected uncompleted study slots in your timeline. Initiate automated recovery to sweep forward, scan for open calendar intervals, auto-balance cognitive load, and patch your active schedules.
+                  The study scheduler detected incomplete slots in your timeline. Initiate recovery to sweep forward, scan for open intervals, auto-balance your workload, and adjust your schedules.
                 </p>
               </div>
             </div>
@@ -343,8 +385,8 @@ export const Scheduler: React.FC = () => {
               <Link2 size={18} />
             </div>
             <div>
-              <h2 className={`text-sm font-extrabold ${TXT_PRIMARY}`}>Google Synchronization Console</h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">Real-time Injection & OAuth Bridge</p>
+              <h2 className={`text-sm font-extrabold ${TXT_PRIMARY}`}>Google Calendar Sync</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">Sync study sessions with your calendar</p>
             </div>
           </div>
 
@@ -429,12 +471,12 @@ export const Scheduler: React.FC = () => {
             <div className="border-t border-slate-200 dark:border-white/[0.08] pt-4 mt-2">
               <h4 className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-black mb-3 flex items-center gap-1.5">
                 <Activity size={12} className="text-brand-500 dark:text-brand-400" />
-                Multi-way Sync Stream
+                Synchronization Logs
               </h4>
               <div className="space-y-2 max-h-[115px] overflow-y-auto pr-1 select-none font-mono scrollbar-thin">
                 {syncLogs.length === 0 ? (
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-4 bg-slate-50 dark:bg-white/[0.01] border border-dashed border-slate-200 dark:border-white/5 rounded-lg">
-                    No sync packets registered in active cycle.
+                    No sync activity registered in this session.
                   </div>
                 ) : (
                   syncLogs.map((log) => (
@@ -573,30 +615,23 @@ export const Scheduler: React.FC = () => {
           {/* Settings Column */}
           <div className="lg:col-span-6 space-y-5">
             {/* Subject selector */}
-            <div>
-              <label className={`text-xs font-extrabold block mb-2 ${TXT_SECONDARY}`}>Select Course / Module Subject</label>
-              <select
-                value={selectedSubjectId}
-                onChange={(e) => setSelectedSubjectId(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-brand-500 dark:focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all font-semibold"
-              >
-                <option value="">-- Choose Course Subject --</option>
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Select Course / Module Subject"
+              value={selectedSubjectId}
+              onChange={(val) => setSelectedSubjectId(val)}
+              options={[
+                { value: '', label: '-- Choose Course Subject --' },
+                ...subjects.map(s => ({ value: s.id, label: `${s.name} (${s.code || ''})` }))
+              ]}
+            />
 
             {/* Date selector */}
-            <div>
-              <label className={`text-xs font-extrabold block mb-2 ${TXT_SECONDARY}`}>Target Exam Date</label>
-              <input
-                type="date"
-                value={examDate}
-                onChange={(e) => setExamDate(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-brand-500 dark:focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all font-semibold"
-              />
-            </div>
+            <Input
+              label="Target Exam Date"
+              type="date"
+              value={examDate}
+              onChange={(e) => setExamDate(e.target.value)}
+            />
 
             {/* Confidence Slider */}
             <div className="bg-slate-50 dark:bg-white/[0.01] border border-slate-200 dark:border-white/5 rounded-xl p-4">
@@ -642,17 +677,16 @@ export const Scheduler: React.FC = () => {
             {/* Chapters Inputs */}
             <div>
               <label className={`text-xs font-extrabold block mb-2 ${TXT_SECONDARY}`}>Syllabus Chapters Checklist</label>
-              <form onSubmit={handleAddChapter} className="flex gap-2">
-                <input
-                  type="text"
+              <form onSubmit={handleAddChapter} className="flex gap-2 items-start">
+                <Input
                   placeholder="e.g. Chapter 4: Neural Architectures..."
                   value={newChapter}
                   onChange={(e) => setNewChapter(e.target.value)}
-                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-3 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-brand-500 dark:focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all font-semibold"
+                  className="flex-1"
                 />
                 <button
                   type="submit"
-                  className="px-4 bg-brand-600 hover:bg-brand-500 rounded-xl text-xs font-black text-white transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-brand-600/10"
+                  className="px-4 bg-brand-600 hover:bg-brand-500 rounded-xl text-xs font-black text-white transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-brand-600/10 h-11 self-start shrink-0"
                 >
                   <Plus size={16} /> Add Topic
                 </button>
@@ -699,14 +733,28 @@ export const Scheduler: React.FC = () => {
             </div>
 
             {/* Generate Action Button */}
-            <button
-              onClick={handleGeneratePlan}
-              disabled={isGenerating}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-black text-xs transition shadow-xl shadow-brand-500/20 active:scale-98 flex items-center justify-center gap-2.5 border border-brand-500/30 group"
-            >
-              <Sparkles size={16} className={isGenerating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />
-              {isGenerating ? 'AI Calendar Engine Optimizing...' : 'Generate Behavior-Aware Academic Plan'}
-            </button>
+            <div className="space-y-2.5">
+              <button
+                onClick={handleGeneratePlan}
+                disabled={isGenerating}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-black text-xs transition shadow-xl shadow-brand-500/20 active:scale-98 flex items-center justify-center gap-2.5 border border-brand-500/30 group"
+              >
+                <Sparkles size={16} className={isGenerating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />
+                {isGenerating ? 'AI Calendar Engine Optimizing...' : 'Generate Behavior-Aware Academic Plan'}
+              </button>
+
+              <button
+                onClick={() => {
+                  const subName = subjects.find(s => s.id === selectedSubjectId)?.name || 'upcoming exams';
+                  const daysNum = examDate ? Math.max(1, Math.round((new Date(examDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 7;
+                  setAiCoachOpen(true, `I want to build a custom study plan for ${subName}. Let's do ${daysNum} days at ${studyHoursGoal}h daily goal.`);
+                }}
+                className="w-full py-3.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.02] dark:hover:bg-white/[0.04] text-slate-800 dark:text-slate-300 font-extrabold text-xs transition flex items-center justify-center gap-2 border border-slate-200 dark:border-white/5 active:scale-98 cursor-pointer shadow-sm"
+              >
+                <Brain size={14} className="text-brand-500 animate-pulse" />
+                Consult AI Academic Coach
+              </button>
+            </div>
           </div>
         </div>
 

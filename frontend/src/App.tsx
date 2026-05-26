@@ -74,11 +74,10 @@ const PageLoader: React.FC = () => (
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const isAuthenticated = useAppStore(
-    (state) => state.isAuthenticated
-  );
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('studiq_access_token') : null;
 
-  return isAuthenticated ? (
+  return isAuthenticated && token ? (
     <>{children}</>
   ) : (
     <Navigate to="/login" replace />

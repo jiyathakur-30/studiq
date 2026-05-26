@@ -1,0 +1,11 @@
+- [ ] Trim atmospheric opacity classes to 0.025‑0.04 range in all pages/components
+- [ ] Remove radar SVG from Greeting hero while preserving gradient background
+- [ ] Soften borders: apply `border-white/5` and reduce `border-brand-500/15`
+- [ ] Clean up telemetry labels, retain only ENGINE.CALIBRATED, FLOW RATIO, SYS.PRODUCTIVITY_CAL
+- [ ] Refine cognitive feed spacing to `space-y-3`
+- [ ] Add mobile responsive opacity scaling (`sm:opacity-[0.025] md:opacity-[0.04]` etc.) and hide heavy overlays on small screens
+- [ ] Standardize motion classes to `transition-all duration-200 ease-out hover:-translate-y-[1px] active:scale-[0.985]`
+- [ ] Verify no new blur utilities are added
+- [ ] Run `npm run build` and ensure success
+- [ ] Run `npm run deploy`
+- [ ] Manually verify desktop and mobile UI (atmosphere, borders, motion, focus command center)

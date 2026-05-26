@@ -4,6 +4,7 @@ import { useAppStore } from '../context/store';
 import { Card } from '../components/common/Card';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { Logo } from '../components/common/Logo';
 import { Sparkles, Terminal } from 'lucide-react';
 
 export const Login: React.FC = () => {
@@ -51,15 +52,13 @@ export const Login: React.FC = () => {
       <Card hoverEffect={false} className="w-full max-w-md relative z-10 !p-8 bg-card backdrop-blur-2xl border border-border shadow-2xl">
         
         {/* Brand Banner */}
-        <div className="flex flex-col items-center mb-8 text-center">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-brand-500 to-indigo-600 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-brand-500/25 mb-3">
-            S
-          </div>
-          <h2 className="font-sans font-black text-2xl text-foreground glow-text tracking-tight flex items-center gap-1.5">
-            STUDIQ <span className="text-[10px] text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full">OS</span>
+        <div className="flex flex-col items-center mb-8 text-center select-none">
+          <Logo size="lg" iconOnly className="mb-3" />
+          <h2 className="font-sans font-black text-2xl text-foreground glow-text tracking-tight flex items-center">
+            STUDIQ
           </h2>
           <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-wider">
-            Student Productivity Operating System
+            Student Productivity Platform
           </p>
         </div>
 

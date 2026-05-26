@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAppStore } from '../../context/store';
 import { CalendarCheck, ClipboardList, BookOpen, Clock, X, ChevronDown, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AICoach } from './AICoach';
+import { Input } from '../common/Input';
+import { Select } from '../common/Select';
 
 export const MainLayout: React.FC = () => {
+  const location = useLocation();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<'attendance' | 'assignment' | 'note' | 'study'>('assignment');
   
@@ -17,6 +20,8 @@ export const MainLayout: React.FC = () => {
   const logAttendance = useAppStore((state) => state.logAttendance);
   const addNote = useAppStore((state) => state.addNote);
   const addStudySession = useAppStore((state) => state.addStudySession);
+  const isAiCoachOpen = useAppStore((state) => state.isAiCoachOpen);
+
 
   const [title, setTitle] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -113,16 +118,29 @@ export const MainLayout: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground antialiased font-sans">
       
-      {/* Elastic Collapsible Sidebar */}
-      <Sidebar />
+      {/* Elastic Collapsible Sidebar with soft focus transition */}
+      <div className={`flex h-full transition-all duration-300 ${isAiCoachOpen ? 'opacity-40 blur-[1px] pointer-events-none scale-[0.99]' : ''}`}>
+        <Sidebar />
+      </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ${isAiCoachOpen ? 'opacity-40 blur-[1px] pointer-events-none scale-[0.99]' : ''}`}>
         <Header onQuickAdd={() => setIsQuickAddOpen(true)} />
         
-        {/* Child Outlet */}
-        <main className="flex-1 overflow-y-auto px-6 py-8 relative">
-          <Outlet />
+        {/* Child Outlet with responsive mobile-first padding */}
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="w-full h-full"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -233,174 +251,100 @@ export const MainLayout: React.FC = () => {
               <div className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Context Subject Picker (Shared Parameter) */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                      <BookOpen size={10} className={
-                        quickAddType === 'assignment' ? 'text-brand-500 font-bold' :
-                        quickAddType === 'attendance' ? 'text-emerald-500 font-bold' :
-                        quickAddType === 'note' ? 'text-cyan-500 font-bold' :
-                        'text-amber-500 font-bold'
-                      } />
-                      Context / Course Subject
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedSubject}
-                        onChange={(e) => setSelectedSubject(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-brand-500 dark:focus:border-brand-500 rounded-xl px-4 py-3 text-xs font-bold transition-all appearance-none cursor-pointer focus:ring-4 focus:ring-brand-500/10 focus:outline-none pr-10 text-slate-900 dark:text-slate-50 shadow-sm"
-                      >
-                        <option value="" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">No Context / General Action</option>
-                        {subjects.map((sub) => (
-                          <option key={sub.id} value={sub.id} className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">
-                            {sub.name} ({sub.code})
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-500">
-                        <ChevronDown size={14} />
-                      </div>
-                    </div>
-                  </div>
-
+                  <Select
+                    label="Context / Course Subject"
+                    value={selectedSubject}
+                    onChange={setSelectedSubject}
+                    options={[
+                      { value: '', label: 'No Context / General Action' },
+                      ...subjects.map((sub) => ({
+                        value: sub.id,
+                        label: `${sub.name} (${sub.code})`
+                      }))
+                    ]}
+                  />
                   {/* Dynamic Action Fields based on Type Selection */}
                   {quickAddType === 'assignment' && (
                     <div className="space-y-5">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                          <ClipboardList size={10} className="text-brand-500" />
-                          Task / Assignment Title
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Name of the upcoming assignment or milestone..."
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-brand-500 dark:focus:border-brand-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-brand-500/10 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-50 shadow-sm"
+                      <Input
+                        label="Task / Assignment Title"
+                        placeholder="Name of the upcoming assignment or milestone..."
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        required
+                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <Input
+                          label="Due Date"
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) => setDueDate(e.target.value)}
                           required
                         />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                            <Clock size={10} className="text-brand-500" />
-                            Due Date
-                          </label>
-                          <input
-                            type="date"
-                            value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-brand-500 dark:focus:border-brand-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-brand-500/10 focus:outline-none text-slate-900 dark:text-slate-50 shadow-sm"
-                            required
-                          />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                            <Sparkles size={10} className="text-brand-500" />
-                            Priority Status
-                          </label>
-                          <div className="relative">
-                            <select
-                               value={priority}
-                               onChange={(e) => setPriority(e.target.value as any)}
-                               className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-brand-500 dark:focus:border-brand-500 rounded-xl px-4 py-3 text-xs font-bold transition-all appearance-none cursor-pointer focus:ring-4 focus:ring-brand-500/10 focus:outline-none pr-10 text-slate-900 dark:text-slate-50 shadow-sm"
-                            >
-                               <option value="low" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">🟢 Low Priority</option>
-                               <option value="medium" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">🟡 Medium Priority</option>
-                               <option value="high" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">🔴 High Priority</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-500">
-                              <ChevronDown size={14} />
-                            </div>
-                          </div>
-                        </div>
+                        <Select
+                          label="Priority Status"
+                          value={priority}
+                          onChange={(val) => setPriority(val)}
+                          options={[
+                            { value: 'low', label: '🟢 Low Priority' },
+                            { value: 'medium', label: '🟡 Medium Priority' },
+                            { value: 'high', label: '🔴 High Priority' }
+                          ]}
+                        />
                       </div>
                     </div>
                   )}
 
                   {quickAddType === 'attendance' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                          <CalendarCheck size={10} className="text-emerald-500" />
-                          Mark Status
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value as any)}
-                            className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-emerald-500 dark:focus:border-emerald-500 rounded-xl px-4 py-3 text-xs font-bold transition-all appearance-none cursor-pointer focus:ring-4 focus:ring-emerald-500/10 focus:outline-none pr-10 text-slate-900 dark:text-slate-50 shadow-sm"
-                          >
-                            <option value="attended" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">✔️ Attended Lecture</option>
-                            <option value="missed" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">❌ Missed Lecture</option>
-                            <option value="cancelled" className="bg-white dark:bg-[#07090e] text-slate-900 dark:text-slate-50">🚫 Lecture Cancelled</option>
-                          </select>
-                          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-500">
-                            <ChevronDown size={14} />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                          <Sparkles size={10} className="text-emerald-500" />
-                          Optional Session Note
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. covered AVL balancing"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-emerald-500 dark:focus:border-emerald-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-emerald-500/10 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-50 shadow-sm"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {quickAddType === 'note' && (
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                        <BookOpen size={10} className="text-cyan-500" />
-                        Note Title
-                      </label>
-                      <input
+                      <Select
+                        label="Mark Status"
+                        value={status}
+                        onChange={(val) => setStatus(val)}
+                        options={[
+                          { value: 'attended', label: '✔️ Attended Lecture' },
+                          { value: 'missed', label: '❌ Missed Lecture' },
+                          { value: 'cancelled', label: '🚫 Lecture Cancelled' }
+                        ]}
+                      />
+                      <Input
+                        label="Optional Session Note"
                         type="text"
-                        placeholder="Title for your new revision note..."
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-cyan-500 dark:focus:border-cyan-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-cyan-500/10 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-50 shadow-sm"
-                        required
+                        placeholder="e.g. covered AVL balancing"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
                       />
                     </div>
                   )}
 
+                  {quickAddType === 'note' && (
+                    <Input
+                      label="Note Title"
+                      type="text"
+                      placeholder="Title for your new revision note..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      required
+                    />
+                  )}
+
                   {quickAddType === 'study' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                          <Clock size={10} className="text-amber-500" />
-                          Focus Duration (minutes)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={duration}
-                          onChange={(e) => setDuration(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-amber-500 dark:focus:border-amber-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-amber-500/10 focus:outline-none text-slate-900 dark:text-slate-50 shadow-sm"
-                          required
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-slate-200 tracking-wider uppercase text-left flex items-center gap-1.5">
-                          <Sparkles size={10} className="text-amber-500" />
-                          Focus Session Notes
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. read algorithm bounds"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-[#090b10] border border-slate-200 dark:border-[#1b2230] focus:bg-white dark:focus:bg-[#0c0f16] focus:border-amber-500 dark:focus:border-amber-500 rounded-xl px-4 py-3 text-xs font-bold transition-all focus:ring-4 focus:ring-amber-500/10 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-50 shadow-sm"
-                        />
-                      </div>
+                      <Input
+                        label="Focus Duration (minutes)"
+                        type="number"
+                        min="1"
+                        value={duration}
+                        onChange={(e) => setDuration(e.target.value)}
+                        required
+                      />
+                      <Input
+                        label="Focus Session Notes"
+                        type="text"
+                        placeholder="e.g. read algorithm bounds"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                      />
                     </div>
                   )}
 

@@ -18,7 +18,9 @@ import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
+import { Select } from '../components/common/Select';
 import { Modal } from '../components/common/Modal';
+import { EmptyState } from '../components/common/EmptyState';
 
 type StatusType = 'todo' | 'in_progress' | 'review' | 'done';
 
@@ -44,6 +46,13 @@ export const Assignments: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [subjectId, setSubjectId] = useState('');
+
+  // Quick Task Bar States
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickSubjectId, setQuickSubjectId] = useState('');
+  const [quickPriority, setQuickPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [quickDueDate, setQuickDueDate] = useState('');
+  const [isQuickFocused, setIsQuickFocused] = useState(false);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +96,23 @@ export const Assignments: React.FC = () => {
     setActiveDragColumn(null);
     const id = e.dataTransfer.getData('taskId');
     if (id) {
-      await updateAssignment(id, { status: targetStatus });
+      const currentTask = assignments.find(a => a.id === id || (a as any)._id === id);
+      if (currentTask && currentTask.status !== targetStatus) {
+        // 🚀 Optimistic Update: Instantly update Zustand store state!
+        useAppStore.setState({
+          assignments: assignments.map(a => (a.id === id || (a as any)._id === id) ? { ...a, status: targetStatus } : a)
+        });
+
+        try {
+          await updateAssignment(id, { status: targetStatus });
+        } catch (error) {
+          // Graceful Rollback on backend sync failure
+          useAppStore.setState({
+            assignments: assignments.map(a => (a.id === id || (a as any)._id === id) ? { ...a, status: currentTask.status } : a)
+          });
+          console.error("[Kanban Drop] Failed to update task status on backend. Restoring state.", error);
+        }
+      }
     }
   };
 
@@ -147,7 +172,7 @@ export const Assignments: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-left">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-7xl mx-auto text-left px-1 sm:px-0">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -179,26 +204,136 @@ export const Assignments: React.FC = () => {
         </div>
 
         {/* Subject Filter */}
-        <select
+        <Select
           value={subjectFilter}
-          onChange={(e) => setSubjectFilter(e.target.value)}
-          className="w-full sm:w-44 bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-        >
-          <option value="">Filter by Course</option>
-          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+          onChange={setSubjectFilter}
+          options={[
+            { value: '', label: 'Filter by Course' },
+            ...subjects.map(s => ({ value: s.id, label: s.name }))
+          ]}
+          className="w-full sm:w-48"
+        />
 
         {/* Priority Filter */}
-        <select
+        <Select
           value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          className="w-full sm:w-44 bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-        >
-          <option value="">Filter by Priority</option>
-          <option value="low">🟢 Low</option>
-          <option value="medium">🟡 Medium</option>
-          <option value="high">🔴 High</option>
-        </select>
+          onChange={setPriorityFilter}
+          options={[
+            { value: '', label: 'Filter by Priority' },
+            { value: 'low', label: '🟢 Low' },
+            { value: 'medium', label: '🟡 Medium' },
+            { value: 'high', label: '🔴 High' }
+          ]}
+          className="w-full sm:w-48"
+        />
+      </div>
+
+      {/* Quick Task Bar inline above Kanban Grid */}
+      <div className="bg-card border border-border p-2.5 rounded-xl shadow-sm space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <Plus size={14} className="absolute left-3 top-3 text-brand-500" />
+            <input
+              type="text"
+              placeholder="Quick-add assignment task to backlog... Press Enter to save"
+              value={quickTitle}
+              onChange={(e) => setQuickTitle(e.target.value)}
+              onFocus={() => setIsQuickFocused(true)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && quickTitle.trim()) {
+                  e.preventDefault();
+                  // Default due date: in 3 days if not set
+                  const defaultDue = quickDueDate
+                    ? new Date(quickDueDate).toISOString()
+                    : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+                  
+                  await addAssignment({
+                    title: quickTitle.trim(),
+                    description: 'Created via quick-add bar.',
+                    dueDate: defaultDue,
+                    priority: quickPriority,
+                    status: 'todo',
+                    subjectId: quickSubjectId || null,
+                    subtasks: []
+                  });
+
+                  setQuickTitle('');
+                  setIsQuickFocused(false);
+                }
+              }}
+              className="w-full bg-muted/50 border border-border rounded-lg pl-8 pr-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-brand-500/50 font-semibold transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Expandable Advanced Options (only on focus or when text is entered) */}
+        {(isQuickFocused || quickTitle.trim().length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className="flex flex-wrap items-center gap-4 pt-2 px-1 border-t border-border/50 overflow-hidden"
+          >
+            {/* Subject Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Course:</span>
+              <Select
+                value={quickSubjectId}
+                onChange={setQuickSubjectId}
+                options={[
+                  { value: '', label: 'None' },
+                  ...subjects.map(s => ({ value: s.id, label: s.name }))
+                ]}
+                className="w-full sm:w-36"
+              />
+            </div>
+
+            {/* Priority Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Priority:</span>
+              <Select
+                value={quickPriority}
+                onChange={(val) => setQuickPriority(val)}
+                options={[
+                  { value: 'low', label: '🟢 Low' },
+                  { value: 'medium', label: '🟡 Medium' },
+                  { value: 'high', label: '🔴 High' }
+                ]}
+                className="w-full sm:w-36"
+              />
+            </div>
+
+            {/* Due Date Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Due Date:</span>
+              <input
+                type="date"
+                value={quickDueDate}
+                onChange={(e) => setQuickDueDate(e.target.value)}
+                className="bg-muted border border-border rounded-lg px-2 py-1 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+              />
+            </div>
+            
+            {/* Action buttons */}
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setQuickTitle('');
+                  setQuickSubjectId('');
+                  setQuickPriority('medium');
+                  setQuickDueDate('');
+                  setIsQuickFocused(false);
+                }}
+                className="h-7 px-2.5 text-[10px] font-bold"
+              >
+                Cancel
+              </Button>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Kanban Grid */}
@@ -277,9 +412,25 @@ export const Assignments: React.FC = () => {
                 })}
 
                 {colTasks.length === 0 && (
-                  <div className="py-12 border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground text-xs font-semibold">
-                    Empty Column
-                  </div>
+                  <EmptyState
+                    align="center"
+                    size="sm"
+                    className="border-dashed bg-transparent border-border/80 hover:border-brand-500/30 transition-all duration-300 py-8 px-3"
+                    title={
+                      col.status === 'todo' ? 'Backlog Clear' :
+                      col.status === 'in_progress' ? 'Ready for Action' :
+                      col.status === 'review' ? 'No Pending Reviews' :
+                      'Awaiting Conquest'
+                    }
+                    description={
+                      col.status === 'todo' ? "You’re clear for now. Add your next milestone to keep momentum moving." :
+                      col.status === 'in_progress' ? "No active study sprints yet. Drag a task here to begin focused work." :
+                      col.status === 'review' ? "Completed study items awaiting review. Drag tasks here to verify." :
+                      "Completed work will appear here as you progress."
+                    }
+                    actionText={col.status === 'todo' ? 'Create Task' : undefined}
+                    onAction={col.status === 'todo' ? () => setIsAddOpen(true) : undefined}
+                  />
                 )}
               </div>
 
@@ -308,8 +459,10 @@ export const Assignments: React.FC = () => {
             placeholder="e.g. wire instruction registers and log rotate sequences"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            multiline
+            rows={3}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Due Date"
               type="date"
@@ -317,30 +470,26 @@ export const Assignments: React.FC = () => {
               onChange={(e) => setDueDate(e.target.value)}
               required
             />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-              >
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="high">High Priority</option>
-              </select>
-            </div>
+            <Select
+              label="Priority"
+              value={priority}
+              onChange={(val) => setPriority(val)}
+              options={[
+                { value: 'low', label: 'Low Priority' },
+                { value: 'medium', label: 'Medium Priority' },
+                { value: 'high', label: 'High Priority' }
+              ]}
+            />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Select Subject Mapping</label>
-            <select
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-            >
-              <option value="">-- No Subject (General Task) --</option>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-            </select>
-          </div>
+          <Select
+            label="Select Subject Mapping"
+            value={subjectId}
+            onChange={setSubjectId}
+            options={[
+              { value: '', label: '-- No Subject (General Task) --' },
+              ...subjects.map(s => ({ value: s.id, label: `${s.name} (${s.code || ''})` }))
+            ]}
+          />
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
             <Button type="button" onClick={() => setIsAddOpen(false)} variant="ghost" size="sm">
               Cancel

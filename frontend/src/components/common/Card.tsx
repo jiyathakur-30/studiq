@@ -7,6 +7,7 @@ interface CardProps {
   hoverEffect?: boolean;
   onClick?: () => void;
   delay?: number;
+  id?: string;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -14,12 +15,13 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   hoverEffect = true,
   onClick,
-  delay = 0
+  delay = 0,
+  id
 }) => {
   const motionProps = {
     initial: { opacity: 0, y: 15 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.4, delay: delay * 0.05, ease: [0.16, 1, 0.3, 1] }
+    transition: { duration: 0.4, delay: delay * 0.05, ease: [0.16, 1, 0.3, 1] as number[] }
   };
 
   const cardStyles = `
@@ -35,6 +37,7 @@ export const Card: React.FC<CardProps> = ({
         {...motionProps}
         onClick={onClick}
         className={cardStyles}
+        id={id}
       >
         {children}
       </motion.div>
@@ -45,6 +48,7 @@ export const Card: React.FC<CardProps> = ({
     <motion.div
       {...motionProps}
       className={cardStyles}
+      id={id}
     >
       {children}
     </motion.div>

@@ -24,7 +24,9 @@ import { useAppStore } from '../context/store';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
+import { Select } from '../components/common/Select';
 import { Badge } from '../components/common/Badge';
+import { Modal } from '../components/common/Modal';
 
 // Helper: Custom Inline Markdown Parser for split preview
 const parseInlineMarkdown = (text: string) => {
@@ -154,6 +156,7 @@ export const Notes: React.FC = () => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 });
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // Get active note model
   const selectedNote = notes.find((n) => n.id === selectedNoteId);
@@ -206,12 +209,10 @@ export const Notes: React.FC = () => {
 
   const handleDeleteNote = async () => {
     if (!selectedNoteId) return;
-    const confirmDelete = window.confirm('Are you sure you want to delete this note?');
-    if (!confirmDelete) return;
-    
     await deleteNote(selectedNoteId);
     setSelectedNoteId(null);
     setActivePanel('none');
+    setIsDeleteConfirmOpen(false);
   };
 
   // Add tag
@@ -293,7 +294,7 @@ export const Notes: React.FC = () => {
         <div className="p-4 border-b border-border space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="font-sans font-black text-foreground text-sm tracking-wide uppercase flex items-center gap-1.5">
-              <FolderOpen size={16} className="text-brand-600 dark:text-brand-400" /> Obsidian Ledger
+              <FolderOpen size={16} className="text-brand-600 dark:text-brand-400" /> Notes Directory
             </h4>
             <span className="text-[10px] text-muted-foreground font-bold bg-muted border border-border px-1.5 py-0.5 rounded-full">
               {filteredNotes.length} Notes
@@ -311,18 +312,17 @@ export const Notes: React.FC = () => {
             />
           </div>
 
-          <select
+          <Select
             value={filterSubject}
-            onChange={(e) => setFilterSubject(e.target.value)}
-            className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-          >
-            <option value="">-- All Subjects / General --</option>
-            {subjects.map((sub) => (
-              <option key={sub.id} value={sub.id}>
-                {sub.name} ({sub.code})
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setFilterSubject(val)}
+            options={[
+              { value: '', label: '-- All Subjects / General --' },
+              ...subjects.map((sub) => ({
+                value: sub.id,
+                label: `${sub.name} (${sub.code || ''})`
+              }))
+            ]}
+          />
         </div>
 
         {/* Notes list */}
@@ -436,18 +436,18 @@ export const Notes: React.FC = () => {
 
               {/* Action Buttons Row */}
               <div className="flex items-center gap-2 flex-wrap">
-                <select
+                <Select
                   value={selectedNote.subjectId || ''}
-                  onChange={(e) => handleSubjectChange(e.target.value)}
-                  className="bg-muted border border-border rounded-lg px-2 py-1.5 text-[10px] font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-                >
-                  <option value="">No Course Link</option>
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.code}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleSubjectChange(val)}
+                  options={[
+                    { value: '', label: 'No Course Link' },
+                    ...subjects.map((sub) => ({
+                      value: sub.id,
+                      label: sub.code || sub.name
+                    }))
+                  ]}
+                  className="w-full sm:w-40"
+                />
 
                 <div className="flex border border-border bg-muted rounded-lg p-0.5">
                   {(['split', 'edit', 'preview'] as const).map((mode) => (
@@ -462,7 +462,7 @@ export const Notes: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={handleDeleteNote}
+                  onClick={() => setIsDeleteConfirmOpen(true)}
                   className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-650 dark:text-red-400 hover:bg-red-500/20 active:scale-95 transition-all"
                   title="Delete File"
                 >
@@ -503,15 +503,15 @@ export const Notes: React.FC = () => {
             </div>
 
             {/* Markdown Workspace Body split panels */}
-            <div className="flex-1 flex overflow-hidden relative">
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
               
               {/* EDIT MODE PANEL */}
               {(viewMode === 'edit' || viewMode === 'split') && (
-                <div className={`h-full flex flex-col border-r border-border/80 ${viewMode === 'edit' ? 'w-full' : 'w-1/2'}`}>
+                <div className={`flex flex-col border-b md:border-b-0 md:border-r border-border/80 ${viewMode === 'edit' ? 'w-full h-full' : 'w-full md:w-1/2 h-1/2 md:h-full'}`}>
                   <textarea
                     value={selectedNote.content}
                     onChange={(e) => handleContentChange(e.target.value)}
-                    className="w-full flex-1 bg-card text-foreground font-mono text-xs leading-relaxed p-6 focus:outline-none resize-none placeholder:text-muted-foreground/60 overflow-y-auto"
+                    className="w-full flex-1 bg-card text-foreground font-mono text-xs leading-relaxed p-4 sm:p-6 focus:outline-none resize-none placeholder:text-muted-foreground/60 overflow-y-auto"
                     placeholder="# Cache Architecture Notes&#10;&#10;## Direct Mapped Cache&#10;- Index = (Block Address) mod (Cache Lines)..."
                   />
                 </div>
@@ -519,7 +519,7 @@ export const Notes: React.FC = () => {
 
               {/* PREVIEW MODE PANEL */}
               {(viewMode === 'preview' || viewMode === 'split') && (
-                <div className={`h-full overflow-y-auto p-6 bg-muted/10 text-left ${viewMode === 'preview' ? 'w-full' : 'w-1/2'}`}>
+                <div className={`overflow-y-auto p-4 sm:p-6 bg-muted/10 text-left ${viewMode === 'preview' ? 'w-full h-full' : 'w-full md:w-1/2 h-1/2 md:h-full'}`}>
                   <div className="prose prose-invert max-w-none space-y-4">
                     {renderMarkdown(selectedNote.content)}
                   </div>
@@ -705,6 +705,34 @@ export const Notes: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Custom Destructive Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        title="Delete Note permanently?"
+        size="sm"
+      >
+        <div className="space-y-4 text-left">
+          <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+            Are you sure you want to permanently delete this note? This action cannot be undone and will permanently wipe the content from your database.
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-6">
+            <Button type="button" onClick={() => setIsDeleteConfirmOpen(false)} variant="ghost" size="sm">
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleDeleteNote} 
+              variant="primary" 
+              size="sm" 
+              className="bg-red-650 dark:bg-red-500 text-white hover:bg-red-750 dark:hover:bg-red-650 border-transparent shadow-md shadow-red-500/10 font-bold"
+            >
+              Confirm Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

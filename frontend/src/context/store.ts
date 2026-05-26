@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { storage, safeParse, DEMO_USER_ID } from '../utils/storage';
 import { apiService, ScheduledSession, ExamPlan, SyncLog, SchedulerStats } from '../services/api';
 import { UserProfile, Subject, Attendance, Assignment, Note, StudySession, AttendanceRecord, Flashcard } from '../services/mockData';
 
@@ -14,7 +15,24 @@ export interface TargetGpaSettings {
   remainingSemesters: number;
 }
 
+export interface StudyPlanningContext {
+  goalType: 'Exam Prep' | 'Assignment Recovery' | 'Revision Week' | 'Catch-Up Recovery' | 'GPA Boost' | 'Regular Study';
+  deadlineDays: number;
+  dailyAvailableHours: number;
+  weakSubjects: string[];
+  targetIntensity: 'light' | 'moderate' | 'high';
+  isPomodoroFormat?: boolean;
+  optimizeForAttendance?: boolean;
+}
+
 interface AppState {
+  // Centralized AI Coach States
+  isAiCoachOpen: boolean;
+  aiCoachPrefilledPrompt: string;
+  aiPlanningContext: StudyPlanningContext | null;
+  setAiCoachOpen: (open: boolean, prefilledPrompt?: string) => void;
+  setAiPlanningContext: (ctx: StudyPlanningContext | null) => void;
+
   // Authentication & Settings
   user: UserProfile | null;
   token: string | null;
@@ -40,8 +58,9 @@ interface AppState {
 
   // Auth Operations
   login: (email: string, password: string) => Promise<boolean>;
-  register: (username: string, email: string) => Promise<boolean>;
+  register: (username: string, email: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  deleteAccount: () => Promise<boolean>;
   initAuth: () => Promise<void>;
   updateSettings: (settings: Partial<UserProfile['settings']>) => Promise<void>;
   setTheme: (theme: 'light' | 'dark' | 'cyberpunk') => void;
@@ -92,16 +111,88 @@ interface AppState {
   rescheduleMissedSessions: () => Promise<{ success: boolean; message: string; rescheduledCount: number; details: any[] }>;
   connectGoogleCalendar: () => Promise<string>;
   disconnectGoogleCalendar: () => Promise<void>;
+  hydrateAcademicData: () => void;
+
+  // Offline Sync System Properties
+  isOffline: boolean;
+  syncStatus: 'synced' | 'pending' | 'saved_local';
+  queueSyncAction: (type: string, payload: any) => void;
+  syncOfflineQueue: () => Promise<void>;
+}
+
+// Centralized utility function to clear persisted state and clean only studiq_ keys
+const clearPersistedState = (set: any, includeTheme: boolean = false) => {
+  if (typeof window !== 'undefined') {
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.startsWith('studiq_')) {
+        if (key === 'studiq_theme' && !includeTheme) {
+          return;
+        }
+        if (key === 'studiq_offline_users') {
+          return; // Protect the user registry database!
+        }
+        localStorage.removeItem(key);
+      }
+    });
+  }
+
+  set({
+    user: null,
+    token: null,
+    isAuthenticated: false,
+    subjects: [],
+    attendance: [],
+    assignments: [],
+    notes: [],
+    studySessions: [],
+    scheduledSessions: [],
+    examPlans: [],
+    semesters: [],
+    targetGpaSettings: {
+      targetCgpa: 9.0,
+      remainingSemesters: 4
+    }
+  });
+};
+
+// Apply theme class to HTML element synchronously on module load to prevent hydration style flash
+if (typeof window !== 'undefined') {
+  const initialTheme = localStorage.getItem('studiq_theme') || 'dark';
+  const root = window.document.documentElement;
+  if (!root.classList.contains(initialTheme)) {
+    root.classList.remove('light', 'dark', 'cyberpunk');
+    root.classList.add(initialTheme);
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  // Centralized AI Coach State Init
+  isAiCoachOpen: false,
+  aiCoachPrefilledPrompt: '',
+  aiPlanningContext: null,
+
+  setAiCoachOpen: (open, prefilledPrompt = '') => {
+    set({ 
+      isAiCoachOpen: open, 
+      aiCoachPrefilledPrompt: prefilledPrompt 
+    });
+  },
+
+  setAiPlanningContext: (ctx) => {
+    set({ aiPlanningContext: ctx });
+  },
+
   // Initial Auth & Settings State
   user: null,
   token: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
-  theme: 'dark',
+  theme: (typeof window !== 'undefined' ? (localStorage.getItem('studiq_theme') || 'dark') : 'dark') as 'light' | 'dark' | 'cyberpunk',
+  
+  isOffline: typeof window !== 'undefined' ? !navigator.onLine : false,
+  syncStatus: 'synced',
 
   // Initial Collections State
   subjects: [],
@@ -144,19 +235,49 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextSem = { ...sem, id: 'sem-' + Date.now() };
     const nextSems = [...get().semesters, nextSem];
     set({ semesters: nextSems });
-    localStorage.setItem('studiq_semesters', JSON.stringify(nextSems));
+    storage.setItem('studiq_semesters', JSON.stringify(nextSems));
   },
 
   deleteSemester: (id) => {
     const nextSems = get().semesters.filter(s => s.id !== id);
     set({ semesters: nextSems });
-    localStorage.setItem('studiq_semesters', JSON.stringify(nextSems));
+    storage.setItem('studiq_semesters', JSON.stringify(nextSems));
   },
 
   updateTargetGpaSettings: (updates) => {
     const nextSettings = { ...get().targetGpaSettings, ...updates };
     set({ targetGpaSettings: nextSettings });
-    localStorage.setItem('studiq_target_gpa', JSON.stringify(nextSettings));
+    storage.setItem('studiq_target_gpa', JSON.stringify(nextSettings));
+  },
+
+  hydrateAcademicData: () => {
+    const storedSemesters = storage.getItem('studiq_semesters');
+    const storedTarget = storage.getItem('studiq_target_gpa');
+    
+    const user = get().user;
+    const isDemoUser = user?.id === DEMO_USER_ID;
+
+    const seededSemesters: SemesterRecord[] = storedSemesters 
+      ? safeParse<SemesterRecord[]>(storedSemesters, [])
+      : (isDemoUser ? [
+          { id: 'sem-1', name: 'Semester 1', sgpa: 8.4, credits: 20 },
+          { id: 'sem-2', name: 'Semester 2', sgpa: 8.6, credits: 22 },
+          { id: 'sem-3', name: 'Semester 3', sgpa: 8.8, credits: 18 },
+          { id: 'sem-4', name: 'Semester 4', sgpa: 9.0, credits: 20 }
+        ] : []);
+
+    const seededTarget: TargetGpaSettings = storedTarget
+      ? safeParse<TargetGpaSettings>(storedTarget, { targetCgpa: 9.0, remainingSemesters: 4 })
+      : { targetCgpa: 9.0, remainingSemesters: 4 };
+
+    if (!storedSemesters && isDemoUser) {
+      storage.setItem('studiq_semesters', JSON.stringify(seededSemesters));
+    }
+    if (!storedTarget) {
+      storage.setItem('studiq_target_gpa', JSON.stringify(seededTarget));
+    }
+
+    set({ semesters: seededSemesters, targetGpaSettings: seededTarget });
   },
 
   // Auth Operations
@@ -168,37 +289,44 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Set theme immediately on init
     get().setTheme(storedTheme);
 
-    // Hydrate GPA details
-    const storedSemesters = localStorage.getItem('studiq_semesters');
-    const storedTarget = localStorage.getItem('studiq_target_gpa');
-    
-    const seededSemesters: SemesterRecord[] = storedSemesters 
-      ? JSON.parse(storedSemesters)
-      : [
-          { id: 'sem-1', name: 'Semester 1', sgpa: 8.4, credits: 20 },
-          { id: 'sem-2', name: 'Semester 2', sgpa: 8.6, credits: 22 },
-          { id: 'sem-3', name: 'Semester 3', sgpa: 8.8, credits: 18 },
-          { id: 'sem-4', name: 'Semester 4', sgpa: 9.0, credits: 20 }
-        ];
-
-    const seededTarget: TargetGpaSettings = storedTarget
-      ? JSON.parse(storedTarget)
-      : { targetCgpa: 9.0, remainingSemesters: 4 };
-
-    if (!storedSemesters) {
-      localStorage.setItem('studiq_semesters', JSON.stringify(seededSemesters));
-    }
-    if (!storedTarget) {
-      localStorage.setItem('studiq_target_gpa', JSON.stringify(seededTarget));
+    // Setup offline event listeners
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        set({ isOffline: false });
+        get().syncOfflineQueue();
+      });
+      window.addEventListener('offline', () => {
+        set({ isOffline: true });
+      });
+      set({ isOffline: !navigator.onLine });
+      if (navigator.onLine) {
+        get().syncOfflineQueue();
+      }
     }
 
-    set({ semesters: seededSemesters, targetGpaSettings: seededTarget });
+    // Initial temporary user hydration from localStorage to ensure correct namespacing before calling API
+    const userStr = localStorage.getItem('studiq_user');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        set({ user: u });
+      } catch (e) {}
+    }
+
+    // Centralized Academic Hydration
+    get().hydrateAcademicData();
+
+    // Run the migration cleanup dynamically!
+    storage.runMigrationCleanup();
 
     if (storedToken) {
       try {
         const user = await apiService.getProfile();
         set({ user, token: storedToken, isAuthenticated: true, theme: user.settings.theme || storedTheme });
         
+        // Re-hydrate academic data dynamically now that we have the verified user profile!
+        get().hydrateAcademicData();
+
         // Load collections concurrently in parallel to maximize response time
         await Promise.all([
           get().fetchSubjects(),
@@ -227,6 +355,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       get().setTheme(data.user.settings.theme);
 
+      // Hydrate newly authenticated user's academic semesters & target GPA from storage!
+      get().hydrateAcademicData();
+
       // Fetch collections concurrently in parallel
       await Promise.all([
         get().fetchSubjects(),
@@ -243,16 +374,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  register: async (username, email) => {
+  register: async (username, email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await apiService.register(username, email);
+      const data = await apiService.register(username, email, password);
       set({
         user: data.user,
         token: data.accessToken,
         isAuthenticated: true,
         isLoading: false
       });
+
+      // Hydrate newly registered user's academic semesters & target GPA from storage!
+      get().hydrateAcademicData();
 
       // Fetch collections concurrently in parallel
       await Promise.all([
@@ -271,17 +405,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('studiq_access_token');
-    set({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      subjects: [],
-      attendance: [],
-      assignments: [],
-      notes: [],
-      studySessions: []
-    });
+    clearPersistedState(set, false);
+  },
+
+  deleteAccount: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const success = await apiService.deleteAccount();
+      if (success) {
+        clearPersistedState(set, true); // Wipe everything including theme on permanent delete
+        return true;
+      }
+      set({ isLoading: false });
+      return false;
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return false;
+    }
   },
 
   updateSettings: async (settingsUpdates) => {
@@ -351,28 +491,46 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   logAttendance: async (subjectId, record) => {
+    const previousAttendance = get().attendance;
+    const tempRecordId = `temp-${Date.now()}`;
+    const tempRecord = { ...record, id: tempRecordId, _id: tempRecordId } as any;
+
+    set((state) => {
+      const docExists = state.attendance.some(a => a.subjectId === subjectId);
+      if (docExists) {
+        return {
+          attendance: state.attendance.map(a =>
+            a.subjectId === subjectId ? { ...a, records: [...a.records, tempRecord] } : a
+          )
+        };
+      } else {
+        return {
+          attendance: [...state.attendance, { subjectId, records: [tempRecord] }]
+        };
+      }
+    });
+
     try {
       const updatedRecords = await apiService.logAttendance(subjectId, record);
-      set((state) => {
-        const docExists = state.attendance.some(a => a.subjectId === subjectId);
-        if (docExists) {
-          return {
-            attendance: state.attendance.map(a =>
-              a.subjectId === subjectId ? { ...a, records: updatedRecords } : a
-            )
-          };
-        } else {
-          return {
-            attendance: [...state.attendance, { subjectId, records: updatedRecords }]
-          };
-        }
-      });
+      set((state) => ({
+        attendance: state.attendance.map(a =>
+          a.subjectId === subjectId ? { ...a, records: updatedRecords } : a
+        )
+      }));
     } catch (error: any) {
-      set({ error: error.message });
+      set({ attendance: previousAttendance, error: error.message });
     }
   },
 
   removeAttendanceRecord: async (subjectId, recordId) => {
+    const previousAttendance = get().attendance;
+
+    set((state) => ({
+      attendance: state.attendance.map(a =>
+        a.subjectId === subjectId ? { ...a, records: a.records.filter(r => r.id !== recordId && (r as any)._id !== recordId) } : a
+      )
+    }));
+
     try {
       const updatedRecords = await apiService.deleteAttendanceRecord(subjectId, recordId);
       set((state) => ({
@@ -381,7 +539,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         )
       }));
     } catch (error: any) {
-      set({ error: error.message });
+      set({ attendance: previousAttendance, error: error.message });
     }
   },
 
@@ -396,33 +554,67 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addAssignment: async (assignment) => {
+    const tempId = `temp-${Date.now()}`;
+    const tempAssignment = { 
+      ...assignment, 
+      id: tempId,
+      _id: tempId // support both formats
+    } as any;
+    
+    const previousAssignments = get().assignments;
+    set((state) => ({ assignments: [...state.assignments, tempAssignment] }));
+    
+    if (!navigator.onLine) {
+      get().queueSyncAction('ADD_ASSIGNMENT', { tempId, assignment });
+      return;
+    }
+    
     try {
       const newAssignment = await apiService.createAssignment(assignment);
-      set((state) => ({ assignments: [...state.assignments, newAssignment] }));
+      set((state) => ({
+        assignments: state.assignments.map(a => a.id === tempId ? newAssignment : a)
+      }));
     } catch (error: any) {
-      set({ error: error.message });
+      get().queueSyncAction('ADD_ASSIGNMENT', { tempId, assignment });
     }
   },
 
   updateAssignment: async (id, updates) => {
+    const previousAssignments = get().assignments;
+    set((state) => ({
+      assignments: state.assignments.map(a => (a.id === id || (a as any)._id === id) ? { ...a, ...updates } : a)
+    }));
+    
+    if (!navigator.onLine) {
+      get().queueSyncAction('UPDATE_ASSIGNMENT', { id, updates });
+      return;
+    }
+    
     try {
       const updatedAssignment = await apiService.updateAssignment(id, updates);
       set((state) => ({
-        assignments: state.assignments.map(a => a.id === id ? updatedAssignment : a)
+        assignments: state.assignments.map(a => (a.id === id || (a as any)._id === id) ? updatedAssignment : a)
       }));
     } catch (error: any) {
-      set({ error: error.message });
+      get().queueSyncAction('UPDATE_ASSIGNMENT', { id, updates });
     }
   },
 
   deleteAssignment: async (id) => {
+    const previousAssignments = get().assignments;
+    set((state) => ({
+      assignments: state.assignments.filter(a => a.id !== id && (a as any)._id !== id)
+    }));
+    
+    if (!navigator.onLine) {
+      get().queueSyncAction('DELETE_ASSIGNMENT', { id });
+      return;
+    }
+    
     try {
       await apiService.deleteAssignment(id);
-      set((state) => ({
-        assignments: state.assignments.filter(a => a.id !== id)
-      }));
     } catch (error: any) {
-      set({ error: error.message });
+      get().queueSyncAction('DELETE_ASSIGNMENT', { id });
     }
   },
 
@@ -554,14 +746,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateSessionStatus: async (id, status) => {
+    const previousSessions = get().scheduledSessions;
+
+    // Optimistic local update
+    set((state) => ({
+      scheduledSessions: state.scheduledSessions.map(s => (s.id === id || (s as any)._id === id) ? { ...s, status } : s)
+    }));
+
     try {
       const updatedSession = await apiService.updateSessionStatus(id, status);
       set((state) => ({
-        scheduledSessions: state.scheduledSessions.map(s => s.id === id ? updatedSession : s)
+        scheduledSessions: state.scheduledSessions.map(s => (s.id === id || (s as any)._id === id) ? updatedSession : s)
       }));
       get().fetchSchedulerDashboardStats();
     } catch (error: any) {
-      set({ error: error.message });
+      set({ scheduledSessions: previousSessions, error: error.message });
     }
   },
 
@@ -625,6 +824,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         const sessions = await apiService.getScheduledSessions();
         set({ scheduledSessions: sessions });
         get().fetchSchedulerDashboardStats();
+        
+        if (!navigator.onLine) {
+          get().queueSyncAction('RESCHEDULE_MISSED', {});
+        }
       }
       return response;
     } catch (error: any) {
@@ -658,6 +861,93 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchSchedulerDashboardStats();
     } catch (error: any) {
       set({ error: error.message });
+    }
+  },
+
+  queueSyncAction: (type, payload) => {
+    const queue = JSON.parse(localStorage.getItem('studiq_sync_queue') || '[]');
+    queue.push({
+      id: 'action-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      type,
+      payload,
+      timestamp: Date.now()
+    });
+    localStorage.setItem('studiq_sync_queue', JSON.stringify(queue));
+    set({ syncStatus: 'saved_local' });
+  },
+
+  syncOfflineQueue: async () => {
+    if (!navigator.onLine) return;
+    const queue = JSON.parse(localStorage.getItem('studiq_sync_queue') || '[]');
+    if (queue.length === 0) {
+      set({ syncStatus: 'synced' });
+      return;
+    }
+
+    set({ syncStatus: 'pending' });
+    console.log('[Offline Sync] Syncing queued actions:', queue.length);
+
+    for (const action of queue) {
+      try {
+        switch (action.type) {
+          case 'ADD_ASSIGNMENT':
+            await apiService.createAssignment(action.payload.assignment);
+            break;
+          case 'UPDATE_ASSIGNMENT':
+            await apiService.updateAssignment(action.payload.id, action.payload.updates);
+            break;
+          case 'DELETE_ASSIGNMENT':
+            await apiService.deleteAssignment(action.payload.id);
+            break;
+          case 'LOG_ATTENDANCE':
+            await apiService.logAttendance(action.payload.subjectId, action.payload.record);
+            break;
+          case 'REMOVE_ATTENDANCE':
+            await apiService.deleteAttendanceRecord(action.payload.subjectId, action.payload.recordId);
+            break;
+          case 'UPDATE_SESSION_STATUS':
+            await apiService.updateSessionStatus(action.payload.id, action.payload.status);
+            break;
+          case 'ADD_SUBJECT':
+            await apiService.createSubject(action.payload.subject);
+            break;
+          case 'UPDATE_SUBJECT':
+            await apiService.updateSubject(action.payload.id, action.payload.updates);
+            break;
+          case 'DELETE_SUBJECT':
+            await apiService.deleteSubject(action.payload.id);
+            break;
+          case 'RESCHEDULE_MISSED':
+            await apiService.rescheduleMissedSessions();
+            break;
+        }
+      } catch (err) {
+        console.error('[Offline Sync] Failed to sync action:', action, err);
+        if (!navigator.onLine) {
+          // If connection dropped, stop and keep remaining queue
+          set({ syncStatus: 'saved_local' });
+          return;
+        }
+      }
+    }
+
+    // Clear queue upon completion and reload store data dynamically to sync with actual DB
+    localStorage.setItem('studiq_sync_queue', '[]');
+    try {
+      await Promise.all([
+        get().fetchSubjects(),
+        get().fetchAttendance(),
+        get().fetchAssignments(),
+        get().fetchNotes(),
+        get().fetchStudySessions(),
+        get().fetchScheduledSessions(),
+        get().fetchSchedulerDashboardStats()
+      ]);
+      set({ syncStatus: 'synced' });
+      console.log('[Offline Sync] All offline actions synced successfully.');
+    } catch (e) {
+      console.warn('[Offline Sync] Local re-hydration failed, keeping synced state.');
+      set({ syncStatus: 'synced' });
     }
   }
 }));

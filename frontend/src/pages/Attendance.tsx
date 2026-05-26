@@ -16,8 +16,10 @@ import { useAppStore } from '../context/store';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
+import { Select } from '../components/common/Select';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
+import { EmptyState } from '../components/common/EmptyState';
 
 export const Attendance: React.FC = () => {
   const { subjects, attendance, logAttendance, removeAttendanceRecord, addSubject, deleteSubject, user } = useAppStore();
@@ -142,13 +144,13 @@ export const Attendance: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-left">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-7xl mx-auto text-left px-1 sm:px-0">
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-sans font-black text-2xl text-foreground tracking-tight">
-            Attendance Operating Ledger
+            Attendance Overview
           </h2>
           <p className="text-sm text-muted-foreground">
             Track lectures, predict class margins, and maintain target thresholds.
@@ -159,7 +161,7 @@ export const Attendance: React.FC = () => {
         </Button>
       </div>
 
-      {/* Grid: Ledger Cards & Calculator */}
+      {/* Grid: Overview Cards & Calculator */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Subjects Attendance Cards List */}
@@ -248,13 +250,37 @@ export const Attendance: React.FC = () => {
             })}
 
             {subjects.length === 0 && (
-              <div className="col-span-2 py-10">
-                <Card className="border-dashed border-border text-center flex flex-col items-center justify-center p-8 bg-muted/10">
-                  <CalendarCheck size={32} className="text-muted-foreground mb-3 animate-float" />
-                  <h4 className="text-foreground text-sm font-bold">Ledger Empty</h4>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-xs mb-4">No course subjects created. Set up your classes to track attendance warnings.</p>
-                  <Button onClick={() => setIsAddSubjectOpen(true)} size="sm">Create First Subject</Button>
-                </Card>
+              <div className="col-span-2">
+                <EmptyState
+                  align="center"
+                  size="md"
+                  icon={<CalendarCheck size={18} />}
+                  title="Your attendance workspace is ready"
+                  description="Add course subjects to begin tracking attendance margins and shortage alerts."
+                  actionText="Create First Subject"
+                  onAction={() => setIsAddSubjectOpen(true)}
+                >
+                  <div className="space-y-3 mt-4 max-w-xs mx-auto opacity-[0.03] dark:opacity-[0.05] pointer-events-none select-none blur-[1px] transition-all duration-300">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-bold text-foreground">
+                        <span>CS-301 Algorithms</span>
+                        <span>82%</span>
+                      </div>
+                      <div className="w-full bg-foreground/20 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-brand-500 h-full w-[82%]" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-bold text-foreground">
+                        <span>CS-302 Web Dev</span>
+                        <span>71%</span>
+                      </div>
+                      <div className="w-full bg-foreground/20 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-brand-500 h-full w-[71%]" />
+                      </div>
+                    </div>
+                  </div>
+                </EmptyState>
               </div>
             )}
           </div>
@@ -273,45 +299,35 @@ export const Attendance: React.FC = () => {
             </div>
 
             {/* Selector */}
-            <div className="flex flex-col gap-1.5 text-left">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Select Target Subject</label>
-              <select
-                value={selectedCalcSubject}
-                onChange={(e) => handleSelectSubjectForCalc(e.target.value)}
-                className="w-full bg-muted border border-border rounded-lg px-4 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-              >
-                <option value="">-- Choose Subject --</option>
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Select Target Subject"
+              value={selectedCalcSubject}
+              onChange={(val) => handleSelectSubjectForCalc(val)}
+              options={[
+                { value: '', label: '-- Choose Subject --' },
+                ...subjects.map(s => ({ value: s.id, label: `${s.name} (${s.code || ''})` }))
+              ]}
+            />
 
             {selectedCalcSubject ? (
               <div className="space-y-5 animate-fade-in text-left">
                 
-                {/* Manual sliders */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Attended Classes</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={sandboxAttended}
-                      onChange={(e) => setSandboxAttended(Math.max(0, Number(e.target.value)))}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Total Classes</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={sandboxTotal}
-                      onChange={(e) => setSandboxTotal(Math.max(sandboxAttended, Number(e.target.value)))}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-                    />
-                  </div>
+                {/* Manual input controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Attended Classes"
+                    type="number"
+                    min="0"
+                    value={sandboxAttended.toString()}
+                    onChange={(e) => setSandboxAttended(Math.max(0, Number(e.target.value)))}
+                  />
+                  <Input
+                    label="Total Classes"
+                    type="number"
+                    min="0"
+                    value={sandboxTotal.toString()}
+                    onChange={(e) => setSandboxTotal(Math.max(sandboxAttended, Number(e.target.value)))}
+                  />
                 </div>
 
                 {/* Simulated upcoming slider */}
@@ -362,9 +378,21 @@ export const Attendance: React.FC = () => {
 
               </div>
             ) : (
-              <div className="py-12 text-center text-xs text-muted-foreground font-medium">
-                Please select a target subject to activate the survival sandbox calculator.
-              </div>
+              <EmptyState
+                align="center"
+                size="sm"
+                title="Sandbox Awaiting Selection"
+                description="Please select a target subject to activate the survival sandbox calculator."
+              >
+                <div className="flex flex-col gap-1.5 items-center justify-center text-[10px] font-semibold text-muted-foreground select-none pointer-events-none mt-1 opacity-80">
+                  <div className="flex items-center gap-1.5 text-brand-650 dark:text-brand-400">
+                    <span className="text-emerald-500 font-black">✓</span> Forecast engine ready
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-brand-500/60 font-black">✓</span> Attendance workspace configured
+                  </div>
+                </div>
+              </EmptyState>
             )}
           </Card>
         </div>
@@ -386,27 +414,25 @@ export const Attendance: React.FC = () => {
             onChange={(e) => setSubName(e.target.value)}
             required
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Course Code"
               placeholder="e.g. CS-310"
               value={subCode}
               onChange={(e) => setSubCode(e.target.value)}
             />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Credits</label>
-              <select
-                value={subCredits}
-                onChange={(e) => setSubCredits(e.target.value)}
-                className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-              >
-                <option value="1">1 Credit</option>
-                <option value="2">2 Credits</option>
-                <option value="3">3 Credits</option>
-                <option value="4">4 Credits</option>
-                <option value="5">5 Credits</option>
-              </select>
-            </div>
+            <Select
+              label="Credits"
+              value={subCredits}
+              onChange={(val) => setSubCredits(val)}
+              options={[
+                { value: '1', label: '1 Credit' },
+                { value: '2', label: '2 Credits' },
+                { value: '3', label: '3 Credits' },
+                { value: '4', label: '4 Credits' },
+                { value: '5', label: '5 Credits' }
+              ]}
+            />
           </div>
           <Input
             label="Professor Name"

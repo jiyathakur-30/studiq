@@ -14,14 +14,17 @@ import {
   Sparkles,
   GraduationCap,
   Calculator,
-  Calendar
+  Calendar,
+  Brain
 } from 'lucide-react';
 import { useAppStore } from '../../context/store';
+import { Logo } from '../common/Logo';
 
 export const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const logout = useAppStore((state) => state.logout);
   const user = useAppStore((state) => state.user);
+  const theme = useAppStore((state) => state.theme);
 
   const navigation = [
     { name: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -29,7 +32,7 @@ export const Sidebar: React.FC = () => {
     { name: 'Assignments', to: '/assignments', icon: ClipboardList },
     { name: 'Notes', to: '/notes', icon: BookOpen },
     { name: 'Study Timer', to: '/timer', icon: Clock },
-    { name: 'Performance', to: '/performance', icon: GraduationCap },
+    { name: 'Focus Intelligence', to: '/performance', icon: Brain },
     { name: 'SGPA Calculator', to: '/sgpa-calculator', icon: Calculator },
     { name: 'AI Scheduler', to: '/scheduler', icon: Calendar },
     { name: 'Settings', to: '/settings', icon: Settings }
@@ -47,25 +50,24 @@ export const Sidebar: React.FC = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex items-center gap-2"
+            className="flex items-center"
           >
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-500 to-indigo-600 flex items-center justify-center text-white font-sans font-bold shadow-md shadow-brand-500/20">
-              S
-            </div>
-            <span className="font-sans font-bold text-lg text-foreground tracking-tight glow-text flex items-center gap-1">
-              STUDIQ <span className="text-[9px] text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded-full border border-brand-500/20">OS</span>
-            </span>
+            <Logo size="md" />
           </motion.div>
         ) : (
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-500 to-indigo-600 flex items-center justify-center text-white font-sans font-bold shadow-md shadow-brand-500/20 mx-auto">
-            S
-          </div>
+          <Logo iconOnly size="md" className="mx-auto" />
         )}
 
         {/* Collapse Toggle Trigger */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-5 w-6 h-6 rounded-full bg-card border border-border hover:border-brand-500/50 text-muted hover:text-foreground flex items-center justify-center shadow-md active:scale-90 transition-all z-40"
+          className={`
+            absolute -right-3 top-5 w-6 h-6 rounded-full border shadow-md active:scale-90 transition-all z-40 flex items-center justify-center
+            ${theme === 'light'
+              ? 'bg-slate-200 border-slate-400 text-black hover:bg-slate-300 hover:text-black'
+              : 'bg-card border-border hover:border-brand-500/50 text-muted-foreground hover:text-foreground'
+            }
+          `}
         >
           {isCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
@@ -78,14 +80,21 @@ export const Sidebar: React.FC = () => {
             key={item.name}
             to={item.to}
             className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 group relative
+              flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-out hover:-translate-y-[1px] active:scale-[0.98] group relative
               ${isActive 
-                ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 font-bold shadow-glow-brand' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-brand-500/5 border border-transparent'}
+                ? 'bg-brand-500/[0.04] text-brand-600 dark:text-brand-400 font-semibold' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-brand-500/[0.02]'}
             `}
           >
             {({ isActive }) => (
               <>
+                {isActive && (
+                  <motion.span
+                    layoutId="activeSidebarIndicator"
+                    className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-brand-500"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  />
+                )}
                 <item.icon size={18} className={isActive ? 'text-brand-600 dark:text-brand-400' : 'text-muted-foreground group-hover:text-foreground transition-colors'} />
                 {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>{item.name}</motion.span>}
                 
